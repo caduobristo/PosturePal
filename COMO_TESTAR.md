@@ -4,7 +4,6 @@
 
 1. Abra o Android Studio
 2. Open Project → `PosturePal\app\frontend\android`
-3. Conecte o tablet via USB
 4. Clique no botão (Run) ou pressione Shift+F10
 5. Selecione seu disp na lista de dispositivos
 6. Aguarde a instalação e teste o app
