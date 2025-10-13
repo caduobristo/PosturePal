@@ -1,2 +1,0 @@
-# PosturePal
-Ballet posture monitor
