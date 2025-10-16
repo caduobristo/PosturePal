@@ -56,8 +56,8 @@ export const LANDMARK_INDICES = {
 };
 
 // Analisa a postura com base nos landmarks
-export const analyzePosture = (landmarks) => {
-  if (!landmarks || landmarks.length === 0) {
+export const analyzePosture = (landmarks, exercise) => {
+  if (!landmarks || landmarks.length === 0 || !exercise) {
     return null;
   }
 
@@ -129,9 +129,7 @@ export const analyzePosture = (landmarks) => {
       feedback.push({
         type: 'success',
         message: 'Ótimo ângulo do joelho!',
-        score: 5,
       });
-      totalScore += 5;
     } else if (kneeAngle < 140) {
       feedback.push({
         type: 'info',
@@ -148,88 +146,220 @@ export const analyzePosture = (landmarks) => {
   const rightElbow = landmarks[LANDMARK_INDICES.RIGHT_ELBOW];
   const rightWrist = landmarks[LANDMARK_INDICES.RIGHT_WRIST];
 
+  if (rightShoulder && rightElbow && rightWrist) {
+      const rightArmAngle = calculateAngle(rightShoulder, rightElbow, rightWrist);
+
+      if (exercise.name == 'Second Position' || exercise.name == 'Fourth Position' || exercise.name == 'Fifth Position') {
+          if (rightArmAngle > 160) {
+              feedback.push({
+                type: 'success',
+                message: 'Braço direito bem estendido!',
+              });
+          } else {
+              feedback.push({
+                type: 'error',
+                message: 'Braço direito deve estar estendido!',
+                score: -15,
+              });
+              totalScore -= 15;
+          }
+      } else {
+          if (rightArmAngle < 120) {
+              feedback.push({
+                type: 'success',
+                message: 'Braço direito na posição correta!',
+              });
+         } else {
+             feedback.push({
+               type: 'error',
+               message: 'Braço direito não deve estar estendido!',
+               score: -15,
+             });
+             totalScore -= 15;
+         }
+    }
+  }
+
   if (leftShoulder && leftElbow && leftWrist) {
     const leftArmAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
-    
-    if (leftArmAngle > 160) {
-      feedback.push({
-        type: 'success',
-        message: 'Braços bem estendidos!',
-        score: 5,
-      });
-      totalScore += 5;
-    }
-  }
-  // 6. Verificar equilíbrio (distância dos pés)
-  const rightAnkle = landmarks[LANDMARK_INDICES.RIGHT_ANKLE];
 
-  if (leftAnkle && rightAnkle) {
-    const feetDistance = calculateDistance(leftAnkle, rightAnkle);
-    const shoulderWidth = calculateDistance(leftShoulder, rightShoulder);
-    
-    // Pés devem estar aproximadamente na largura dos ombros
-    if (Math.abs(feetDistance - shoulderWidth) < 0.1) {
-      feedback.push({
-        type: 'success',
-        message: 'Excelente base de apoio!',
-        score: 5,
-      });
-      totalScore += 5;
-    } else if (feetDistance > shoulderWidth * 1.5) {
-      feedback.push({
-        type: 'warning',
-        message: 'Pés muito afastados. Aproxime-os.',
-        score: -5,
-      });
-      totalScore -= 5;
-    } else if (feetDistance < shoulderWidth * 0.5) {
-      feedback.push({
-        type: 'warning',
-        message: 'Pés muito juntos. Afaste-os um pouco.',
-        score: -5,
-      });
-      totalScore -= 5;
+    if (exercise.name == 'Second Position' || exercise.name == 'Fourth Position' || exercise.name == 'Fifth Position') {
+        if (leftArmAngle > 160) {
+            feedback.push({
+              type: 'success',
+              message: 'Braço esquerdo bem estendido!',
+            });
+        } else {
+            feedback.push({
+              type: 'error',
+              message: 'Braço esquerdo deve estar estendido!',
+              score: -15,
+            });
+            totalScore -= 15;
+        }
+    } else {
+        if (leftArmAngle < 120) {
+            feedback.push({
+              type: 'success',
+              message: 'Braço esquerdo na posição correta!',
+            });
+       } else {
+           feedback.push({
+             type: 'error',
+             message: 'Braço esquerdo não deve estar estendido!',
+             score: -15,
+           });
+           totalScore -= 15;
+       }
     }
   }
 
+ // 6. Verificar altura dos braços
+ if (rightShoulder && rightElbow && rightHip) {
+       const rightArmHeightAngle = calculateAngle(rightElbow, rightShoulder, rightHip);
+
+       if (exercise.name == 'First Position' || exercise.name == 'Fourth Position') {
+           if (rightArmHeightAngle > 30 && rightArmHeightAngle < 100) {
+               feedback.push({
+                 type: 'success',
+                 message: 'Braço direito bem estendido!',
+               });
+           } else {
+               feedback.push({
+                 type: 'error',
+                 message: 'Mão direita na frente do umbigo!',
+                 score: -15,
+               });
+               totalScore -= 15;
+           }
+       } else if (exercise.name == 'Fifth Position') {
+           if (rightArmHeightAngle > 150) {
+               feedback.push({
+                 type: 'success',
+                 message: 'Braço direito na posição correta!',
+               });
+          } else {
+              feedback.push({
+                type: 'error',
+                message: 'Braço direito mais para cima!',
+                score: -15,
+              });
+              totalScore -= 15;
+          }
+      } else {
+           if (rightArmHeightAngle > 70 && rightArmHeightAngle < 120) {
+               feedback.push({
+                 type: 'success',
+                 message: 'Braço direito na posição correta!',
+               });
+          } else {
+              feedback.push({
+                type: 'error',
+                message: 'Braço direito na altura do ombro!',
+                score: -15,
+              });
+              totalScore -= 15;
+          }
+     }
+   }
+
+   if (leftShoulder && leftElbow && leftHip) {
+     const leftArmHeightAngle = calculateAngle(leftElbow, leftShoulder, leftHip);
+
+     if (exercise.name == 'First Position' || exercise.name == 'Third Position') {
+        if (leftArmHeightAngle > 30 && leftArmHeightAngle < 100) {
+            feedback.push({
+              type: 'success',
+              message: 'Braço esquerdo bem estendido!',
+            });
+        } else {
+            feedback.push({
+              type: 'error',
+              message: 'Mão esquerdo na frente do umbigo!',
+              score: -15,
+            });
+            totalScore -= 15;
+        }
+    } else if (exercise.name == 'Second Position') {
+        if (leftArmHeightAngle > 70 && leftArmHeightAngle < 120) {
+            feedback.push({
+              type: 'success',
+              message: 'Braço esquerdo na posição correta!',
+            });
+       } else {
+           feedback.push({
+             type: 'error',
+             message: 'Braço esquerdo na altura do ombro!',
+             score: -15,
+           });
+           totalScore -= 15;
+       }
+   } else {
+        if (leftArmHeightAngle > 150) {
+            feedback.push({
+              type: 'success',
+              message: 'Braço esquerdo na posição correta!',
+            });
+       } else {
+           feedback.push({
+             type: 'error',
+             message: 'Braço esquerdo mais para cima!',
+             score: -15,
+           });
+           totalScore -= 15;
+       }
+  }
+}
   // Garantir que o score final esteja entre 0 e 100
   totalScore = Math.max(0, Math.min(100, totalScore));
 
   return {
     score: Math.round(totalScore),
-    feedback,
-    landmarks,
+    feedback
   };
 };
 
 // Gera feedback detalhado baseado no score
 export const generateDetailedFeedback = (score) => {
-  if (score >= 90) {
+  if (score >= 95) {
     return {
-      title: 'Execução Excelente! 🎉',
-      message: 'Sua forma e alinhamento estão perfeitos. Continue assim!',
+      title: 'Execução Impecável! 🏆',
+      message: 'Postura perfeita! Você dominou este exercício.',
       color: 'from-green-500 to-emerald-600',
     };
-  } else if (score >= 80) {
+  } else if (score >= 85) {
+    return {
+      title: 'Execução Excelente! 🎉',
+      message: 'Ajustes mínimos. Continue assim!',
+      color: 'from-lime-400 to-teal-600',
+    };
+  } else if (score >= 75) {
     return {
       title: 'Ótimo Trabalho! 👏',
-      message: 'Sua postura está muito boa. Pequenos ajustes levarão à perfeição.',
+      message: 'Sua postura está boa. Pequenos ajustes ainda são possíveis.',
       color: 'from-blue-500 to-cyan-600',
     };
-  } else if (score >= 70) {
+  } else if (score >= 65) {
     return {
       title: 'Bom Esforço! 💪',
-      message: 'Continue praticando. Foque nos pontos de melhoria.',
+      message: 'Você está no caminho certo. Foque nos pontos de melhoria.',
       color: 'from-yellow-500 to-orange-600',
+    };
+  } else if (score >= 50) {
+    return {
+      title: 'Você Consegue Melhorar! 🧐',
+      message: 'Revise os principais pontos da postura e tente novamente.',
+      color: 'from-orange-500 to-rose-600',
     };
   } else {
     return {
       title: 'Continue Praticando! 🌟',
-      message: 'Revise os pontos-chave e tente novamente.',
+      message: 'Não desanime. Com dedicação, você chegará lá!',
       color: 'from-rose-500 to-pink-600',
     };
   }
 };
+
 
 export default {
   calculateAngle,

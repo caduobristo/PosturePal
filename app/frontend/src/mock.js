@@ -28,8 +28,8 @@ export const mockBalletExercises = [
   },
   {
     id: '2',
-    name: 'Arabesque',
-    difficulty: 'Intermediate',
+    name: 'Second Position',
+    difficulty: 'Beginner',
     description: 'One leg extended behind, body in line',
     image: 'https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=300&h=200&fit=crop',
     keyPoints: ['Extended leg alignment', 'Hip square', 'Long spine', 'Arm positioning'],
@@ -38,8 +38,8 @@ export const mockBalletExercises = [
   },
   {
     id: '3',
-    name: 'Grand Plié',
-    difficulty: 'Intermediate',
+    name: 'Third Position',
+    difficulty: 'Beginner',
     description: 'Deep knee bend maintaining turnout',
     image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&h=200&fit=crop',
     keyPoints: ['Knee alignment', 'Straight back', 'Controlled movement', 'Proper turnout'],
@@ -48,7 +48,7 @@ export const mockBalletExercises = [
   },
   {
     id: '4',
-    name: 'Port de Bras',
+    name: 'Fourth Position',
     difficulty: 'Beginner',
     description: 'Graceful arm movements and carriage',
     image: 'https://images.unsplash.com/photo-1594736797933-d0401ba00de2?w=300&h=200&fit=crop',
@@ -58,7 +58,7 @@ export const mockBalletExercises = [
   },
   {
     id: '5',
-    name: 'Tendu',
+    name: 'Fifth Position',
     difficulty: 'Beginner',
     description: 'Sliding foot along floor maintaining contact',
     image: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&h=200&fit=crop',
@@ -83,7 +83,7 @@ export const mockSessionHistory = [
     id: '1',
     date: '2024-01-15',
     time: '14:30',
-    exercise: 'Arabesque',
+    exercise: 'First Position',
     score: 87,
     duration: '00:45',
     feedback: 'Great improvement in hip alignment! Work on extending the lifted leg more.',
@@ -97,7 +97,7 @@ export const mockSessionHistory = [
     id: '2',
     date: '2024-01-14',
     time: '16:20',
-    exercise: 'Grand Plié',
+    exercise: 'Second Position',
     score: 91,
     duration: '00:32',
     feedback: 'Excellent control and turnout. Keep working on the depth of the plié.',
@@ -111,7 +111,7 @@ export const mockSessionHistory = [
     id: '3',
     date: '2024-01-14',
     time: '16:00',
-    exercise: 'First Position',
+    exercise: 'Third Position',
     score: 94,
     duration: '00:25',
     feedback: 'Perfect execution! Your posture and turnout are excellent.',
@@ -125,7 +125,7 @@ export const mockSessionHistory = [
     id: '4',
     date: '2024-01-13',
     time: '18:45',
-    exercise: 'Port de Bras',
+    exercise: 'Fourth Position',
     score: 83,
     duration: '01:12',
     feedback: 'Beautiful arm flow. Focus on keeping shoulders relaxed.',
@@ -139,7 +139,7 @@ export const mockSessionHistory = [
     id: '5',
     date: '2024-01-12',
     time: '15:30',
-    exercise: 'Tendu',
+    exercise: 'Fifth Position',
     score: 88,
     duration: '00:38',
     feedback: 'Good foot articulation. Work on maintaining hip stability.',
@@ -152,14 +152,14 @@ export const mockSessionHistory = [
 ];
 
 export const mockProgressData = [
-  { date: '2024-01-08', score: 78, exercise: 'Arabesque' },
+  { date: '2024-01-08', score: 78, exercise: 'Fourth Position' },
   { date: '2024-01-09', score: 85, exercise: 'First Position' },
-  { date: '2024-01-10', score: 82, exercise: 'Grand Plié' },
-  { date: '2024-01-11', score: 89, exercise: 'Port de Bras' },
-  { date: '2024-01-12', score: 88, exercise: 'Tendu' },
-  { date: '2024-01-13', score: 83, exercise: 'Port de Bras' },
-  { date: '2024-01-14', score: 91, exercise: 'Grand Plié' },
-  { date: '2024-01-15', score: 87, exercise: 'Arabesque' }
+  { date: '2024-01-10', score: 82, exercise: 'Third Position' },
+  { date: '2024-01-11', score: 89, exercise: 'Second Position' },
+  { date: '2024-01-12', score: 88, exercise: 'Fifth Position' },
+  { date: '2024-01-13', score: 83, exercise: 'Second Position' },
+  { date: '2024-01-14', score: 91, exercise: 'Third Position' },
+  { date: '2024-01-15', score: 87, exercise: 'Fourth Position' }
 ];
 
 export const mockCameraSession = {

@@ -16,12 +16,17 @@ import {
 } from 'lucide-react';
 import { mockBalletExercises, mockCameraSession } from '../mock';
 import { useMediaPipePose } from '../hooks/useMediaPipePose';
+import { analyzePosture, generateDetailedFeedback } from '../utils/postureAnalysis';
 
 const CameraEvaluation = () => {
   const { exerciseId } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState(mockCameraSession);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const [score, setScore] = useState(0);
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [scoreFeedback, setScoreFeedback] = useState(null);
   
   const exercise = mockBalletExercises.find(ex => ex.id === exerciseId);
   
@@ -42,6 +47,22 @@ const CameraEvaluation = () => {
     setIsAnalyzing(false);
     stopCamera();
   };
+
+  useEffect(() => {
+      if (!isAnalyzing || !landmarks || landmarks.length === 0 || !exercise) return;
+
+      const { score, feedback } = analyzePosture(landmarks, exercise);
+      const feedbackSummary = generateDetailedFeedback(score);
+
+      console.log('landmarks:', landmarks);
+      console.log('score:', score);
+      console.log('feedbacks:', feedback);
+      console.log('feedback summary:', feedbackSummary);
+
+      setScore(score);
+      setFeedbacks(feedback);
+      setScoreFeedback(feedbackSummary);
+    }, [landmarks, isAnalyzing, exercise]);
 
   if (!exercise) {
     return (
@@ -172,6 +193,43 @@ const CameraEvaluation = () => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Status Info */}
+      {isAnalyzing && landmarks && (
+          <div className="px-6 mb-6">
+              {/*
+                  1. Verificamos se 'feedbacks' é um array e se tem elementos.
+                  2. Usamos o método 'map' para iterar sobre cada item do array 'feedbacks'.
+              */}
+              {feedbacks && Array.isArray(feedbacks) && feedbacks.map((feedbackItem, index) => (
+                  // A 'key' é essencial no React para ajudar na performance e rastreamento.
+                  // Usamos o índice (index) como key, mas um ID único seria melhor se estivesse disponível.
+                  <Card
+                      key={index}
+                      className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-emerald-50 mb-3" // Adicionado mb-3 para espaçamento
+                  >
+                      <CardContent className="p-4">
+                          <div className="flex items-center justify-center space-x-2">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                              <p className="text-sm font-medium text-green-800">
+                                  {/* Você pode exibir o score se for o mesmo para todos, ou removê-lo. */}
+                                  {/* Se o score for por feedback, use feedbackItem.score */}
+                                  {/* Exibindo a mensagem do feedback atual: */}
+                                  **Feedback {index + 1}:** {feedbackItem.message}
+                              </p>
+                          </div>
+                      </CardContent>
+                  </Card>
+              ))}
+
+              {/* Se você ainda quiser exibir o score uma única vez (se ele não for por feedback) */}
+              {scoreFeedback && (
+                  <div className="text-center mt-4">
+                       <p className="text-lg font-bold text-gray-700">Score Final: {score} -> {scoreFeedback.title}</p>
+                  </div>
+              )}
+          </div>
       )}
 
       {/* Controls */}
