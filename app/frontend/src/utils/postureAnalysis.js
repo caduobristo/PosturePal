@@ -325,37 +325,37 @@ export const generateDetailedFeedback = (score) => {
     return {
       title: 'Execução Impecável! 🏆',
       message: 'Postura perfeita! Você dominou este exercício.',
-      color: 'from-green-500 to-emerald-600',
+      color: 'bg-green-200',
     };
   } else if (score >= 85) {
     return {
       title: 'Execução Excelente! 🎉',
       message: 'Ajustes mínimos. Continue assim!',
-      color: 'from-lime-400 to-teal-600',
+      color: 'bg-lime-200',
     };
   } else if (score >= 75) {
     return {
       title: 'Ótimo Trabalho! 👏',
       message: 'Sua postura está boa. Pequenos ajustes ainda são possíveis.',
-      color: 'from-blue-500 to-cyan-600',
+      color: 'bg-blue-200',
     };
   } else if (score >= 65) {
     return {
       title: 'Bom Esforço! 💪',
       message: 'Você está no caminho certo. Foque nos pontos de melhoria.',
-      color: 'from-yellow-500 to-orange-600',
+      color: 'bg-yellow-200',
     };
   } else if (score >= 50) {
     return {
       title: 'Você Consegue Melhorar! 🧐',
       message: 'Revise os principais pontos da postura e tente novamente.',
-      color: 'from-orange-500 to-rose-600',
+      color: 'bg-orange-200',
     };
   } else {
     return {
       title: 'Continue Praticando! 🌟',
       message: 'Não desanime. Com dedicação, você chegará lá!',
-      color: 'from-rose-500 to-pink-600',
+      color: 'bg-rose-200',
     };
   }
 };

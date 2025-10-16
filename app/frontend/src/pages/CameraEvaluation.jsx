@@ -181,54 +181,57 @@ const CameraEvaluation = () => {
 
       {/* Status Info */}
       {isAnalyzing && landmarks && (
-        <div className="px-6 mb-6">
-          <Card className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-emerald-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <p className="text-sm font-medium text-green-800">
-                  {landmarks.length} pontos detectados
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Status Info */}
-      {isAnalyzing && landmarks && (
           <div className="px-6 mb-6">
               {/*
                   1. Verificamos se 'feedbacks' é um array e se tem elementos.
                   2. Usamos o método 'map' para iterar sobre cada item do array 'feedbacks'.
               */}
-              {feedbacks && Array.isArray(feedbacks) && feedbacks.map((feedbackItem, index) => (
-                  // A 'key' é essencial no React para ajudar na performance e rastreamento.
-                  // Usamos o índice (index) como key, mas um ID único seria melhor se estivesse disponível.
-                  <Card
-                      key={index}
-                      className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-emerald-50 mb-3" // Adicionado mb-3 para espaçamento
-                  >
-                      <CardContent className="p-4">
-                          <div className="flex items-center justify-center space-x-2">
-                              <CheckCircle className="w-5 h-5 text-green-600" />
-                              <p className="text-sm font-medium text-green-800">
-                                  {/* Você pode exibir o score se for o mesmo para todos, ou removê-lo. */}
-                                  {/* Se o score for por feedback, use feedbackItem.score */}
-                                  {/* Exibindo a mensagem do feedback atual: */}
-                                  **Feedback {index + 1}:** {feedbackItem.message}
-                              </p>
-                          </div>
-                      </CardContent>
-                  </Card>
-              ))}
-
               {/* Se você ainda quiser exibir o score uma única vez (se ele não for por feedback) */}
               {scoreFeedback && (
-                  <div className="text-center mt-4">
-                       <p className="text-lg font-bold text-gray-700">Score Final: {score} -> {scoreFeedback.title}</p>
-                  </div>
+                     <div className={`text-center mt-4 p-4 rounded border border-black ${scoreFeedback.color}`}>
+                         <p className="text-lg font-bold text-gray-700">Score: {score} </p>
+                         <p className="text-lg font-bold text-gray-700">{scoreFeedback.title}</p>
+                         <p className="text-sm text-gray-700">{scoreFeedback.message}</p>
+                    </div>
               )}
+
+              {feedbacks && Array.isArray(feedbacks) && feedbacks.map((feedbackItem, index) => {
+                  if (feedbackItem.type === 'success') {
+                      return (
+                          <Card
+                              key={index}
+                              className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-emerald-50 mb-3"
+                          >
+                              <CardContent className="p-4">
+                                  <div className="flex items-center justify-center space-x-2">
+                                      <CheckCircle className="w-5 h-5 text-green-600" />
+                                      <p className="text-sm font-medium text-green-800">
+                                          <strong>Feedback {index + 1}:</strong> {feedbackItem.message}
+                                      </p>
+                                  </div>
+                              </CardContent>
+                          </Card>
+                      );
+                  } else {
+                      return (
+                          <Card
+                              key={index}
+                              className="border-0 shadow-lg bg-gradient-to-r from-red-50 to-rose-50 mb-3"
+                          >
+                              <CardContent className="p-4">
+                                  <div className="flex items-center justify-center space-x-2">
+                                      <CheckCircle className="w-5 h-5 text-red-600" />
+                                      <p className="text-sm font-medium text-red-800">
+                                          <strong>Feedback {index + 1}:</strong> {feedbackItem.message}
+                                      </p>
+                                  </div>
+                              </CardContent>
+                          </Card>
+                      );
+                  }
+              })}
+
+
           </div>
       )}
 
