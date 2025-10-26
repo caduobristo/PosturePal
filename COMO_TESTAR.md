@@ -7,6 +7,7 @@
 4. Clique no botão (Run) ou pressione Shift+F10
 5. Selecione seu disp na lista de dispositivos
 6. Aguarde a instalação e teste o app
+7. Baixar `npm install three @react-three/fiber @react-three/drei`
 
 ## Scripts PowerShell
 

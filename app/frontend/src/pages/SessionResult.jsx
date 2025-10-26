@@ -22,7 +22,24 @@ const SessionResult = () => {
   const { sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  
+
+  const { exercise, scoreHistory, landmarksHistory } = location.state || {};
+
+  if (!exercise || !scoreHistory) {
+      return (
+        <div className="p-6 text-center">
+          <p className="text-red-600">Session data not available.</p>
+          <Button onClick={() => navigate('/exercises')} className="mt-4">
+            Come back to exercises
+          </Button>
+        </div>
+      );
+    }
+
+    const average = (
+      scoreHistory.reduce((acc, s) => acc + s, 0) / scoreHistory.length
+    ).toFixed(1);
+
   // Get session data from navigation state or mock data
   const sessionFromState = location.state;
   const sessionFromMock = mockSessionHistory.find(s => s.id === sessionId);
@@ -35,20 +52,24 @@ const SessionResult = () => {
   };
 
   const getScoreColor = (score) => {
-    if (score >= 90) return 'from-emerald-400 to-emerald-600';
-    if (score >= 80) return 'from-blue-400 to-blue-600';
-    if (score >= 70) return 'from-amber-400 to-amber-600';
-    return 'from-red-400 to-red-600';
+    if (score >= 95) return 'bg-green-200';
+    if (score >= 85) return 'bg-lime-200';
+    if (score >= 75) return 'bg-blue-200';
+    if (score >= 65) return 'bg-yellow-200';
+    if (score >= 50) return 'bg-orange-200';
+    return 'bg-rose-200';
   };
 
   const getScoreBadge = (score) => {
-    if (score >= 90) return { text: 'Excellent', class: 'bg-emerald-100 text-emerald-700' };
-    if (score >= 80) return { text: 'Good', class: 'bg-blue-100 text-blue-700' };
-    if (score >= 70) return { text: 'Fair', class: 'bg-amber-100 text-amber-700' };
-    return { text: 'Needs Work', class: 'bg-red-100 text-red-700' };
+    if (score >= 95) return { text: 'Flawless Execution! 🏆', class: 'bg-emerald-100 text-emerald-700' };
+    if (score >= 85) return { text: 'Excellent Execution! 🎉', class: 'bg-lime-100 text-lime-700' };
+    if (score >= 75) return { text: 'Great Work! 👏', class: 'bg-blue-100 text-blue-700' };
+    if (score >= 65) return { text: 'Good Effort! 💪', class: 'bg-yellow-100 text-yellow-700' };
+    if (score >= 50) return { text: 'You Can Improve! 🧐', class: 'bg-orange-100 text-orange-700' };
+    return { text: 'Keep Practicing! 🌟', class: 'bg-rose-100 text-rose-700' };
   };
 
-  const badge = getScoreBadge(session.score);
+  const badge = getScoreBadge(average);
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-rose-50 via-white to-purple-50">
@@ -75,7 +96,7 @@ const SessionResult = () => {
 
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Session Complete!</h1>
-          <p className="text-slate-600 text-sm">{session.exercise} Analysis</p>
+          <p className="text-slate-600 text-sm">{exercise.name} Analysis</p>
         </div>
       </div>
 
@@ -84,9 +105,9 @@ const SessionResult = () => {
         <Card className="border-0 shadow-2xl bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-sm">
           <CardContent className="p-8 text-center">
             <div className="relative mb-6">
-              <div className={`w-32 h-32 mx-auto rounded-full bg-gradient-to-br ${getScoreColor(session.score)} flex items-center justify-center shadow-lg`}>
+              <div className={`w-32 h-32 mx-auto rounded-full ${getScoreColor(average)} flex items-center justify-center shadow-lg`}>
                 <div className="text-white">
-                  <div className="text-3xl font-bold mb-1">{session.score}</div>
+                  <div className="text-3xl font-bold mb-1">{average}</div>
                   <div className="text-sm opacity-90">/ 100</div>
                 </div>
               </div>

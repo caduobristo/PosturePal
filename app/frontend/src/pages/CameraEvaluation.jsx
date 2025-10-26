@@ -25,6 +25,9 @@ const CameraEvaluation = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const [score, setScore] = useState(0);
+  const [scoreHistory, setScoreHistory] = useState([]);
+  const [landmarksHistory, setLandmarksHistory] = useState([]);
+
   const [feedbacks, setFeedbacks] = useState([]);
   const [scoreFeedback, setScoreFeedback] = useState(null);
   
@@ -35,7 +38,7 @@ const CameraEvaluation = () => {
 
   const startEvaluation = () => {
     if (!isReady) {
-      alert('Câmera ainda não está pronta. Aguarde um momento.');
+      alert('Camera is not ready. Wait a minute.');
       return;
     }
     setSession(prev => ({ ...prev, isActive: true }));
@@ -46,6 +49,14 @@ const CameraEvaluation = () => {
     setSession(mockCameraSession);
     setIsAnalyzing(false);
     stopCamera();
+
+    navigate('/result/1', {
+        state: {
+           exercise,
+           scoreHistory,
+           landmarksHistory,
+        },
+    });
   };
 
   useEffect(() => {
@@ -62,6 +73,9 @@ const CameraEvaluation = () => {
       setScore(score);
       setFeedbacks(feedback);
       setScoreFeedback(feedbackSummary);
+      setScoreHistory(prevHistory => [...prevHistory, score]);
+      setLandmarksHistory(prevHistory => [...prevHistory, landmarks]);
+
     }, [landmarks, isAnalyzing, exercise]);
 
   if (!exercise) {
@@ -127,7 +141,7 @@ const CameraEvaluation = () => {
                 <div className="absolute inset-0 flex items-center justify-center bg-black/70">
                   <div className="text-center text-white p-6">
                     <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
-                    <p className="text-sm mb-2">Erro ao acessar câmera</p>
+                    <p className="text-sm mb-2">Error: can't acess the camera</p>
                     <p className="text-xs text-white/70">{error}</p>
                   </div>
                 </div>
@@ -145,12 +159,12 @@ const CameraEvaluation = () => {
               <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
                 {!isReady && !error && (
                   <Badge className="bg-yellow-500/90 text-white">
-                    Iniciando câmera...
+                    Initing the camera...
                   </Badge>
                 )}
                 {isAnalyzing && (
                   <Badge className="bg-green-500/90 text-white">
-                    ● AO VIVO
+                    ● LIVE
                   </Badge>
                 )}
               </div>
@@ -162,7 +176,7 @@ const CameraEvaluation = () => {
                     <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Camera className="w-8 h-8 text-white" />
                     </div>
-                    <p className="text-white/80">Posicione-se no quadro</p>
+                    <p className="text-white/80">Stand inside the frame</p>
                   </div>
                 </div>
               )}
@@ -246,12 +260,12 @@ const CameraEvaluation = () => {
             {!isReady ? (
               <>
                 <Camera className="w-5 h-5 mr-2" />
-                Preparando Câmera...
+                Preparing the camera...
               </>
             ) : (
               <>
                 <Play className="w-5 h-5 mr-2" />
-                Iniciar Câmera
+                Init camera
               </>
             )}
           </Button>
@@ -261,7 +275,7 @@ const CameraEvaluation = () => {
             className="w-full h-14 bg-red-500 hover:bg-red-600 text-white font-medium shadow-lg"
           >
             <RotateCcw className="w-5 h-5 mr-2" />
-            Parar Câmera
+            Stop camera
           </Button>
         )}
       </div>

@@ -81,7 +81,7 @@ export const mockBalletExercises = [
 export const mockSessionHistory = [
   {
     id: '1',
-    date: '2024-01-15',
+    date: '2025-11-15',
     time: '14:30',
     exercise: 'First Position',
     score: 87,
@@ -95,7 +95,7 @@ export const mockSessionHistory = [
   },
   {
     id: '2',
-    date: '2024-01-14',
+    date: '2025-11-14',
     time: '16:20',
     exercise: 'Second Position',
     score: 91,
@@ -109,7 +109,7 @@ export const mockSessionHistory = [
   },
   {
     id: '3',
-    date: '2024-01-14',
+    date: '2025-11-14',
     time: '16:00',
     exercise: 'Third Position',
     score: 94,
@@ -123,7 +123,7 @@ export const mockSessionHistory = [
   },
   {
     id: '4',
-    date: '2024-01-13',
+    date: '2025-11-13',
     time: '18:45',
     exercise: 'Fourth Position',
     score: 83,
@@ -137,7 +137,7 @@ export const mockSessionHistory = [
   },
   {
     id: '5',
-    date: '2024-01-12',
+    date: '2025-11-12',
     time: '15:30',
     exercise: 'Fifth Position',
     score: 88,
@@ -152,14 +152,14 @@ export const mockSessionHistory = [
 ];
 
 export const mockProgressData = [
-  { date: '2024-01-08', score: 78, exercise: 'Fourth Position' },
-  { date: '2024-01-09', score: 85, exercise: 'First Position' },
-  { date: '2024-01-10', score: 82, exercise: 'Third Position' },
-  { date: '2024-01-11', score: 89, exercise: 'Second Position' },
-  { date: '2024-01-12', score: 88, exercise: 'Fifth Position' },
-  { date: '2024-01-13', score: 83, exercise: 'Second Position' },
-  { date: '2024-01-14', score: 91, exercise: 'Third Position' },
-  { date: '2024-01-15', score: 87, exercise: 'Fourth Position' }
+  { date: '2025-11-08', score: 78, exercise: 'Fourth Position' },
+  { date: '2025-11-09', score: 85, exercise: 'First Position' },
+  { date: '2025-11-10', score: 82, exercise: 'Third Position' },
+  { date: '2025-11-11', score: 89, exercise: 'Second Position' },
+  { date: '2025-11-12', score: 88, exercise: 'Fifth Position' },
+  { date: '2025-11-13', score: 83, exercise: 'Second Position' },
+  { date: '2025-11-14', score: 91, exercise: 'Third Position' },
+  { date: '2025-11-15', score: 87, exercise: 'Fourth Position' }
 ];
 
 export const mockCameraSession = {
