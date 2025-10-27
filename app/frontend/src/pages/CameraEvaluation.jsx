@@ -23,6 +23,7 @@ const CameraEvaluation = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState(mockCameraSession);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [countdown, setCountdown] = useState(null);
 
   const [score, setScore] = useState(0);
   const [scoreHistory, setScoreHistory] = useState([]);
@@ -30,23 +31,79 @@ const CameraEvaluation = () => {
 
   const [feedbacks, setFeedbacks] = useState([]);
   const [scoreFeedback, setScoreFeedback] = useState(null);
-  const [feedbacksHistory, setFeedbacksHistory] = useState([])
+  const [feedbacksHistory, setFeedbacksHistory] = useState([]);
+  const scoreHistoryRef = useRef([]);
+  const landmarksHistoryRef = useRef([]);
+  const feedbacksHistoryRef = useRef([]);
   
   const exercise = mockBalletExercises.find(ex => ex.id === exerciseId);
   
   // Hook do MediaPipe
   const { videoRef, canvasRef, isReady, landmarks, error, stopCamera } = useMediaPipePose();
+  const countdownIntervalRef = useRef(null);
+  const analysisTimeoutRef = useRef(null);
+
+  const clearTimers = () => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    if (analysisTimeoutRef.current) {
+      clearTimeout(analysisTimeoutRef.current);
+      analysisTimeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearTimers();
+    };
+  }, []);
 
   const startEvaluation = () => {
     if (!isReady) {
       alert('Camera is not ready. Wait a minute.');
       return;
     }
+
+    clearTimers();
+    scoreHistoryRef.current = [];
+    landmarksHistoryRef.current = [];
+    feedbacksHistoryRef.current = [];
+    setScoreHistory([]);
+    setLandmarksHistory([]);
+    setFeedbacksHistory([]);
+    setCountdown(3);
     setSession(prev => ({ ...prev, isActive: true }));
-    setIsAnalyzing(true); // Ativar câmera imediatamente
+    setIsAnalyzing(false);
+
+    let timeLeft = 3;
+    countdownIntervalRef.current = setInterval(() => {
+      timeLeft -= 1;
+
+      if (timeLeft > 0) {
+        setCountdown(timeLeft);
+        return;
+      }
+
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+      setCountdown(null);
+      setIsAnalyzing(true);
+
+      analysisTimeoutRef.current = setTimeout(() => {
+        stopEvaluation();
+      }, 5000);
+    }, 1000);
   };
 
   const stopEvaluation = () => {
+    clearTimers();
+    setCountdown(null);
+    const finalScoreHistory = scoreHistoryRef.current;
+    const finalLandmarksHistory = landmarksHistoryRef.current;
+    const finalFeedbacksHistory = feedbacksHistoryRef.current;
+
     setSession(mockCameraSession);
     setIsAnalyzing(false);
     stopCamera();
@@ -54,15 +111,15 @@ const CameraEvaluation = () => {
     navigate('/result/1', {
         state: {
            exercise,
-           scoreHistory,
-           landmarksHistory,
-           feedbacksHistory,
+           scoreHistory: finalScoreHistory,
+           landmarksHistory: finalLandmarksHistory,
+           feedbacksHistory: finalFeedbacksHistory,
         },
     });
   };
 
   useEffect(() => {
-      if (!isAnalyzing || !landmarks || landmarks.length === 0 || !exercise) return;
+      if (!isAnalyzing || !landmarks?.length || !exercise) return;
 
       const { score, feedback } = analyzePosture(landmarks, exercise);
       const feedbackSummary = generateDetailedFeedback(score);
@@ -75,9 +132,21 @@ const CameraEvaluation = () => {
       setScore(score);
       setFeedbacks(feedback);
       setScoreFeedback(feedbackSummary);
-      setScoreHistory(prevHistory => [...prevHistory, score]);
-      setLandmarksHistory(prevHistory => [...prevHistory, landmarks]);
-      setFeedbacksHistory(prevHistory => [...prevHistory, ...feedback]);
+      setScoreHistory(prevHistory => {
+        const updated = [...prevHistory, score];
+        scoreHistoryRef.current = updated;
+        return updated;
+      });
+      setLandmarksHistory(prevHistory => {
+        const updated = [...prevHistory, landmarks];
+        landmarksHistoryRef.current = updated;
+        return updated;
+      });
+      setFeedbacksHistory(prevHistory => {
+        const updated = [...prevHistory, ...feedback];
+        feedbacksHistoryRef.current = updated;
+        return updated;
+      });
 
     }, [landmarks, isAnalyzing, exercise]);
 
@@ -181,6 +250,12 @@ const CameraEvaluation = () => {
                     </div>
                     <p className="text-white/80">Stand inside the frame</p>
                   </div>
+                </div>
+              )}
+
+              {countdown !== null && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <span className="text-5xl font-bold text-white">{countdown}</span>
                 </div>
               )}
 

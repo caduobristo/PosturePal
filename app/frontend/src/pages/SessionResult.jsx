@@ -2,7 +2,6 @@ import React from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
 import { 
   ArrowLeft,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { mockSessionHistory } from '../mock';
 import { getTopFeedbacks } from '../utils/getTopFeedbacks';
+import Landmark3DViewer from '../utils/3dmodel';
 
 const SessionResult = () => {
   const { sessionId } = useParams();
@@ -26,6 +26,9 @@ const SessionResult = () => {
 
   const { exercise, scoreHistory, landmarksHistory, feedbacksHistory } = location.state || {};
   let topFeedbacks = [];
+  const latestLandmarks = Array.isArray(landmarksHistory) && landmarksHistory.length > 0
+    ? landmarksHistory[landmarksHistory.length - 1]
+    : null;
 
   if (!exercise || !scoreHistory) {
       return (
@@ -133,6 +136,21 @@ const SessionResult = () => {
           </CardContent>
         </Card>
       </div>
+
+      {latestLandmarks && (
+        <div className="px-6 mb-6">
+          <Card className="border-0 shadow-2xl bg-white/70 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center text-slate-800">
+                3D Landmark Preview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Landmark3DViewer landmarks={latestLandmarks} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Achievements & Tips */}
         <div className="px-6 mb-6">
