@@ -17,13 +17,15 @@ import {
   Trophy
 } from 'lucide-react';
 import { mockSessionHistory } from '../mock';
+import { getTopFeedbacks } from '../utils/getTopFeedbacks';
 
 const SessionResult = () => {
   const { sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { exercise, scoreHistory, landmarksHistory } = location.state || {};
+  const { exercise, scoreHistory, landmarksHistory, feedbacksHistory } = location.state || {};
+  let topFeedbacks = [];
 
   if (!exercise || !scoreHistory) {
       return (
@@ -34,6 +36,10 @@ const SessionResult = () => {
           </Button>
         </div>
       );
+    }
+
+    if (feedbacksHistory && feedbacksHistory.length > 0) {
+        topFeedbacks = getTopFeedbacks(feedbacksHistory);
     }
 
     const average = (
@@ -52,12 +58,12 @@ const SessionResult = () => {
   };
 
   const getScoreColor = (score) => {
-    if (score >= 95) return 'bg-green-200';
-    if (score >= 85) return 'bg-lime-200';
-    if (score >= 75) return 'bg-blue-200';
-    if (score >= 65) return 'bg-yellow-200';
-    if (score >= 50) return 'bg-orange-200';
-    return 'bg-rose-200';
+    if (score >= 95) return 'bg-green-400';
+    if (score >= 85) return 'bg-lime-400';
+    if (score >= 75) return 'bg-blue-400';
+    if (score >= 65) return 'bg-yellow-400';
+    if (score >= 50) return 'bg-orange-400';
+    return 'bg-rose-400';
   };
 
   const getScoreBadge = (score) => {
@@ -123,85 +129,67 @@ const SessionResult = () => {
             <Badge className={`${badge.class} px-4 py-2 text-sm font-medium mb-4`}>
               {badge.text}
             </Badge>
-            
-            <p className="text-slate-700 text-sm leading-relaxed">
-              {session.feedback}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Detailed Metrics */}
-      <div className="px-6 mb-6">
-        <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center text-slate-800">
-              <Target className="w-5 h-5 mr-2" />
-              Detailed Analysis
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {session.keyMetrics && Object.entries(session.keyMetrics).map(([key, value]) => (
-              <div key={key} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-700 capitalize">{key}</span>
-                  <span className="text-sm font-bold text-slate-800">{value}/100</span>
-                </div>
-                <Progress value={value} className="h-2" />
-              </div>
-            ))}
           </CardContent>
         </Card>
       </div>
 
       {/* Achievements & Tips */}
-      <div className="px-6 mb-6">
-        <div className="grid grid-cols-1 gap-4">
-          {/* Strengths */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-teal-50">
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center text-emerald-800">
-                <CheckCircle className="w-4 h-4 mr-2" />
-                What You Did Well
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-start space-x-2">
-                  <Star className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-emerald-700">Maintained excellent core stability</p>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <Star className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-emerald-700">Good alignment through spine</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="px-6 mb-6">
+          <div className="grid grid-cols-1 gap-4">
+            {/* Strengths */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-teal-50">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center text-emerald-800">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  What You Did Well
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {topFeedbacks.success.length > 0 ? (
+                  <div className="space-y-2 text-sm">
+                    {topFeedbacks.success.map((item, index) => (
+                      <div key={index} className="flex items-start space-x-2">
+                        <Star className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-emerald-700">
+                          {item.message} <span className="text-xs text-emerald-500"></span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-emerald-700 text-sm">No success feedback recorded.</p>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Areas for Improvement */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-orange-50">
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center text-amber-800">
-                <AlertCircle className="w-4 h-4 mr-2" />
-                Areas to Focus On
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-start space-x-2">
-                  <TrendingUp className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-amber-700">Work on hip alignment for better balance</p>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <TrendingUp className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-amber-700">Focus on extended leg positioning</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            {/* Areas for Improvement */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-orange-50">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center text-amber-800">
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Areas to Focus On
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {topFeedbacks.error.length > 0 ? (
+                  <div className="space-y-2 text-sm">
+                    {topFeedbacks.error.map((item, index) => (
+                      <div key={index} className="flex items-start space-x-2">
+                        <TrendingUp className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-amber-700">
+                          {item.message} <span className="text-xs text-amber-500"></span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-amber-700 text-sm">No error feedback recorded.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
 
       {/* Action Buttons */}
       <div className="px-6 pb-24 space-y-3">

@@ -30,6 +30,7 @@ const CameraEvaluation = () => {
 
   const [feedbacks, setFeedbacks] = useState([]);
   const [scoreFeedback, setScoreFeedback] = useState(null);
+  const [feedbacksHistory, setFeedbacksHistory] = useState([])
   
   const exercise = mockBalletExercises.find(ex => ex.id === exerciseId);
   
@@ -55,6 +56,7 @@ const CameraEvaluation = () => {
            exercise,
            scoreHistory,
            landmarksHistory,
+           feedbacksHistory,
         },
     });
   };
@@ -75,6 +77,7 @@ const CameraEvaluation = () => {
       setScoreFeedback(feedbackSummary);
       setScoreHistory(prevHistory => [...prevHistory, score]);
       setLandmarksHistory(prevHistory => [...prevHistory, landmarks]);
+      setFeedbacksHistory(prevHistory => [...prevHistory, ...feedback]);
 
     }, [landmarks, isAnalyzing, exercise]);
 
