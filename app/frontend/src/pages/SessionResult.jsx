@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -18,6 +18,7 @@ import {
 import { mockSessionHistory } from '../mock';
 import { getTopFeedbacks } from '../utils/getTopFeedbacks';
 import Landmark3DViewer from '../utils/3dmodel';
+import { analyzePosture } from '../utils/postureAnalysis';
 
 const SessionResult = () => {
   const { sessionId } = useParams();
@@ -29,6 +30,10 @@ const SessionResult = () => {
   const latestLandmarks = Array.isArray(landmarksHistory) && landmarksHistory.length > 0
     ? landmarksHistory[landmarksHistory.length - 1]
     : null;
+  const latestAnalysis = useMemo(() => {
+    if (!latestLandmarks || !exercise) return null;
+    return analyzePosture(latestLandmarks, exercise);
+  }, [latestLandmarks, exercise]);
 
   if (!exercise || !scoreHistory) {
       return (
@@ -145,8 +150,11 @@ const SessionResult = () => {
                 3D Landmark Preview
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Landmark3DViewer landmarks={latestLandmarks} />
+              <CardContent>
+              <Landmark3DViewer
+                landmarks={latestLandmarks}
+                metrics={latestAnalysis?.metrics}
+              />
             </CardContent>
           </Card>
         </div>

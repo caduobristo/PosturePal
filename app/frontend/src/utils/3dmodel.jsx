@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { POSE_CONNECTIONS } from '@mediapipe/pose';
+import { LANDMARK_INDICES } from './postureAnalysis';
 
 const normalizeLandmark = ({ x, y, z }) => {
   return [
@@ -11,13 +12,69 @@ const normalizeLandmark = ({ x, y, z }) => {
   ];
 };
 
-const Landmark3DViewer = ({ landmarks }) => {
+const NEUTRAL_COLOR = new THREE.Color('#d1d5db');
+const GOOD_COLOR = new THREE.Color('#22c55e');
+const BAD_COLOR = new THREE.Color('#ef4444');
+
+const METRIC_SEGMENTS = {
+  shoulderAlignment: [[LANDMARK_INDICES.LEFT_SHOULDER, LANDMARK_INDICES.RIGHT_SHOULDER]],
+  hipAlignment: [[LANDMARK_INDICES.LEFT_HIP, LANDMARK_INDICES.RIGHT_HIP]],
+  spineAlignment: [
+    [LANDMARK_INDICES.LEFT_SHOULDER, LANDMARK_INDICES.LEFT_HIP],
+    [LANDMARK_INDICES.RIGHT_SHOULDER, LANDMARK_INDICES.RIGHT_HIP],
+  ],
+  kneeAngle: [
+    [LANDMARK_INDICES.LEFT_HIP, LANDMARK_INDICES.LEFT_KNEE],
+    [LANDMARK_INDICES.LEFT_KNEE, LANDMARK_INDICES.LEFT_ANKLE],
+    [LANDMARK_INDICES.RIGHT_HIP, LANDMARK_INDICES.RIGHT_KNEE],
+    [LANDMARK_INDICES.RIGHT_KNEE, LANDMARK_INDICES.RIGHT_ANKLE],
+  ],
+  leftArmExtension: [
+    [LANDMARK_INDICES.LEFT_SHOULDER, LANDMARK_INDICES.LEFT_ELBOW],
+    [LANDMARK_INDICES.LEFT_ELBOW, LANDMARK_INDICES.LEFT_WRIST],
+  ],
+  rightArmExtension: [
+    [LANDMARK_INDICES.RIGHT_SHOULDER, LANDMARK_INDICES.RIGHT_ELBOW],
+    [LANDMARK_INDICES.RIGHT_ELBOW, LANDMARK_INDICES.RIGHT_WRIST],
+  ],
+  leftArmHeight: [
+    [LANDMARK_INDICES.LEFT_SHOULDER, LANDMARK_INDICES.LEFT_ELBOW],
+    [LANDMARK_INDICES.LEFT_SHOULDER, LANDMARK_INDICES.LEFT_HIP],
+  ],
+  rightArmHeight: [
+    [LANDMARK_INDICES.RIGHT_SHOULDER, LANDMARK_INDICES.RIGHT_ELBOW],
+    [LANDMARK_INDICES.RIGHT_SHOULDER, LANDMARK_INDICES.RIGHT_HIP],
+  ],
+};
+
+const lerpColor = (startColor, endColor, t) =>
+  startColor.clone().lerp(endColor, THREE.MathUtils.clamp(t, 0, 1));
+
+const fillColorAttribute = (attribute, color) => {
+  for (let i = 0; i < attribute.count; i += 1) {
+    attribute.setXYZ(i, color.r, color.g, color.b);
+  }
+  attribute.needsUpdate = true;
+};
+
+const setConnectionColor = (attribute, connectionIndex, color) => {
+  const firstVertex = connectionIndex * 2;
+  attribute.setXYZ(firstVertex, color.r, color.g, color.b);
+  attribute.setXYZ(firstVertex + 1, color.r, color.g, color.b);
+  attribute.needsUpdate = true;
+};
+
+const clampSeverity = (value) =>
+  THREE.MathUtils.clamp(typeof value === 'number' ? value : 0, 0, 1);
+
+const Landmark3DViewer = ({ landmarks, metrics = {} }) => {
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
   const controlsRef = useRef(null);
   const pointsRef = useRef(null);
   const lineSegmentsRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const connectionLookupRef = useRef(new Map());
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -49,7 +106,7 @@ const Landmark3DViewer = ({ landmarks }) => {
 
     const material = new THREE.PointsMaterial({
       color: 0xff4fa1,
-      size: 0.05,
+      size: 0.035,
       sizeAttenuation: true,
     });
     const points = new THREE.Points(geometry, material);
@@ -59,14 +116,25 @@ const Landmark3DViewer = ({ landmarks }) => {
     const lineGeometry = new THREE.BufferGeometry();
     const linePositions = new Float32Array(POSE_CONNECTIONS.length * 2 * 3);
     lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const lineColors = new Float32Array(POSE_CONNECTIONS.length * 2 * 3);
+    lineGeometry.setAttribute('color', new THREE.BufferAttribute(lineColors, 3));
+    fillColorAttribute(lineGeometry.getAttribute('color'), NEUTRAL_COLOR);
     const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0xf5a2d0,
+      vertexColors: true,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.7,
+      linewidth: 2.5,
     });
     const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
     scene.add(lines);
     lineSegmentsRef.current = lines;
+
+    const lookup = new Map();
+    POSE_CONNECTIONS.forEach(([start, end], connectionIndex) => {
+      lookup.set(`${start}-${end}`, connectionIndex);
+      lookup.set(`${end}-${start}`, connectionIndex);
+    });
+    connectionLookupRef.current = lookup;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -105,8 +173,6 @@ const Landmark3DViewer = ({ landmarks }) => {
         renderer.domElement.parentNode.removeChild(renderer.domElement);
       }
     };
-    // We intentionally exclude landmarks here; updates handled below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -148,6 +214,36 @@ const Landmark3DViewer = ({ landmarks }) => {
       lineAttribute.needsUpdate = true;
     }
   }, [landmarks]);
+
+  useEffect(() => {
+    if (!lineSegmentsRef.current) return;
+
+    const lineAttribute = lineSegmentsRef.current.geometry.getAttribute('color');
+    if (!lineAttribute) return;
+
+    fillColorAttribute(lineAttribute, NEUTRAL_COLOR);
+
+    const segmentSeverity = new Map();
+    Object.entries(METRIC_SEGMENTS).forEach(([metricKey, segments]) => {
+      if (typeof metrics[metricKey] !== 'number') return;
+      const severity = clampSeverity(metrics[metricKey]);
+
+      segments.forEach(([start, end]) => {
+        const key = `${start}-${end}`;
+        const current = segmentSeverity.get(key) ?? 0;
+        segmentSeverity.set(key, Math.max(current, severity));
+      });
+    });
+
+    segmentSeverity.forEach((severity, key) => {
+      const connectionIndex = connectionLookupRef.current.get(key);
+      if (connectionIndex === undefined) return;
+      const color = lerpColor(GOOD_COLOR, BAD_COLOR, severity);
+      setConnectionColor(lineAttribute, connectionIndex, color);
+    });
+
+    lineAttribute.needsUpdate = true;
+  }, [metrics]);
 
   return (
     <div className="relative">
