@@ -43,6 +43,17 @@ export const calculatePenalty = (angle, minAngle, maxAngle, maxPenalty) => {
   return penalty;
 };
 
+export const calculateSeverity = (penalty, maxPenalty) => {
+  if (!maxPenalty) {
+    return 0;
+  }
+  const normalized = penalty / maxPenalty;
+  if (!Number.isFinite(normalized)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, normalized));
+};
+
 // MediaPipe Pose landmark indices
 export const LANDMARK_INDICES = {
   NOSE: 0,
@@ -80,6 +91,8 @@ export const LANDMARK_INDICES = {
   RIGHT_FOOT_INDEX: 32,
 };
 
+const SHOULDER_ALIGNMENT_MAX_PENALTY = 10;
+
 // Analyzes posture based on landmarks
 export const analyzePosture = (landmarks, exercise) => {
   if (!landmarks || landmarks.length === 0 || !exercise) {
@@ -89,6 +102,16 @@ export const analyzePosture = (landmarks, exercise) => {
   const feedback = [];
   let totalScore = 100;
   let penalty = 0;
+  const metrics = {
+    shoulderAlignment: 0,
+    hipAlignment: 0,
+    spineAlignment: 0,
+    kneeAngle: 0,
+    leftArmExtension: 0,
+    rightArmExtension: 0,
+    leftArmHeight: 0,
+    rightArmHeight: 0
+  };
 
   // 1. Check shoulder alignment
   const leftShoulder = landmarks[LANDMARK_INDICES.LEFT_SHOULDER];
@@ -96,8 +119,11 @@ export const analyzePosture = (landmarks, exercise) => {
 
   if (leftShoulder && rightShoulder) {
     const shoulderDiff = Math.abs(leftShoulder.y - rightShoulder.y);
-    penalty = calculatePenalty(shoulderDiff, 0.05, 0.4, 10);
-
+    penalty = calculatePenalty(shoulderDiff, 0.05, 0.4, SHOULDER_ALIGNMENT_MAX_PENALTY);
+    metrics.shoulderAlignment = calculateSeverity(
+      penalty,
+      SHOULDER_ALIGNMENT_MAX_PENALTY
+    );
     if (penalty > 0) {
       feedback.push({
         type: 'error',
@@ -112,6 +138,7 @@ export const analyzePosture = (landmarks, exercise) => {
       });
     }
   } else {
+    metrics.shoulderAlignment = 1;
     feedback.push({
       type: 'error',
       message: 'Shoulders not detected. Adjust the camera.',
@@ -127,6 +154,7 @@ export const analyzePosture = (landmarks, exercise) => {
   if (leftHip && rightHip) {
     const hipDiff = Math.abs(leftHip.y - rightHip.y);
     penalty = calculatePenalty(hipDiff, 0.05, 0.4, 10);
+    metrics.hipAlignment = calculateSeverity(penalty, 10);
 
     if (penalty > 0) {
       feedback.push({
@@ -142,6 +170,7 @@ export const analyzePosture = (landmarks, exercise) => {
       });
     }
   } else {
+    metrics.hipAlignment = 1;
     feedback.push({
       type: 'error',
       message: 'Hips not detected. Adjust the camera.',
@@ -160,6 +189,7 @@ export const analyzePosture = (landmarks, exercise) => {
   if (nose && midHip) {
     const spineAlignment = Math.abs(nose.x - midHip.x);
     penalty = calculatePenalty(spineAlignment, 0.1, 0.4, 15);
+    metrics.spineAlignment = calculateSeverity(penalty, 15);
 
     if (penalty > 0) {
       feedback.push({
@@ -175,6 +205,7 @@ export const analyzePosture = (landmarks, exercise) => {
       });
     }
   } else {
+    metrics.spineAlignment = 1;
     feedback.push({
       type: 'error',
       message: 'Posture not detected. Adjust the camera.',
@@ -197,6 +228,7 @@ export const analyzePosture = (landmarks, exercise) => {
       });
     } else if (kneeAngle < 140) {
       penalty = calculatePenalty(kneeAngle, 140, 80, 5);
+      metrics.kneeAngle = calculateSeverity(penalty, 5);
       feedback.push({
         type: 'error',
         message: 'Knees too bent. Straighten slightly.',
@@ -205,6 +237,7 @@ export const analyzePosture = (landmarks, exercise) => {
       totalScore -= penalty;
     }
   } else {
+    metrics.kneeAngle = 1;
     feedback.push({
       type: 'error',
       message: 'Knees not visible in the camera.',
@@ -234,6 +267,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(rightArmAngle, 160, 100, 15);
+        metrics.rightArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right arm should be extended!',
@@ -249,6 +283,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(rightArmAngle, 120, 160, 15);
+        metrics.rightArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right arm should not be extended!',
@@ -258,6 +293,7 @@ export const analyzePosture = (landmarks, exercise) => {
       }
     }
   } else {
+    metrics.rightArmExtension = 1;
     feedback.push({
       type: 'error',
       message: 'Right arm not visible in the camera.',
@@ -281,6 +317,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(leftArmAngle, 160, 100, 15);
+        metrics.leftArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left arm should be extended!',
@@ -296,6 +333,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(leftArmAngle, 120, 160, 15);
+        metrics.leftArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left arm should not be extended!',
@@ -305,6 +343,7 @@ export const analyzePosture = (landmarks, exercise) => {
       }
     }
   } else {
+    metrics.leftArmExtension = 1;
     feedback.push({
       type: 'error',
       message: 'Left arm not visible in the camera.',
@@ -325,6 +364,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else if (rightArmHeightAngle < 30) {
         penalty = calculatePenalty(rightArmHeightAngle, 30, 10, 15);
+        metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right hand should be in front of your navel!',
@@ -333,6 +373,7 @@ export const analyzePosture = (landmarks, exercise) => {
         totalScore -= penalty;
       } else {
         penalty = calculatePenalty(rightArmHeightAngle, 100, 120, 15);
+        metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right hand should be in front of your navel!',
@@ -348,6 +389,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(rightArmHeightAngle, 130, 90, 15);
+        metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right arm higher up!',
@@ -363,6 +405,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else if (rightArmHeightAngle < 70) {
         penalty = calculatePenalty(rightArmHeightAngle, 70, 40, 15);
+        metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right arm should be at shoulder height!',
@@ -371,6 +414,7 @@ export const analyzePosture = (landmarks, exercise) => {
         totalScore -= penalty;
       } else {
         penalty = calculatePenalty(rightArmHeightAngle, 120, 160, 15);
+        metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right arm higher up!',
@@ -380,6 +424,7 @@ export const analyzePosture = (landmarks, exercise) => {
       }
     }
   } else {
+    metrics.rightArmHeight = 1;
     feedback.push({
       type: 'error',
       message: 'Right side of the body not visible in the camera.',
@@ -399,6 +444,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else if (leftArmHeightAngle < 30) {
         penalty = calculatePenalty(leftArmHeightAngle, 30, 0, 15);
+        metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left hand should be in front of your navel!',
@@ -407,6 +453,7 @@ export const analyzePosture = (landmarks, exercise) => {
         totalScore -= penalty;
       } else {
         penalty = calculatePenalty(leftArmHeightAngle, 100, 140, 15);
+        metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left hand should be in front of your navel!',
@@ -422,6 +469,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else if (leftArmHeightAngle < 70) {
         penalty = calculatePenalty(leftArmHeightAngle, 70, 40, 15);
+        metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left arm should be at shoulder height!',
@@ -430,6 +478,7 @@ export const analyzePosture = (landmarks, exercise) => {
         totalScore -= penalty;
       } else {
         penalty = calculatePenalty(leftArmHeightAngle, 120, 160, 15);
+        metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left arm should be at shoulder height!',
@@ -445,6 +494,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(leftArmHeightAngle, 130, 90, 15);
+        metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left arm higher up!',
@@ -454,6 +504,7 @@ export const analyzePosture = (landmarks, exercise) => {
       }
     }
   } else {
+    metrics.leftArmHeight = 1;
     feedback.push({
       type: 'error',
       message: 'Left side of the body not visible in the camera.',
@@ -468,6 +519,7 @@ export const analyzePosture = (landmarks, exercise) => {
   return {
     score: Math.round(totalScore),
     feedback,
+    metrics,
   };
 };
 
@@ -515,6 +567,7 @@ export const generateDetailedFeedback = (score) => {
 export default {
   calculateAngle,
   calculateDistance,
+  calculateSeverity,
   analyzePosture,
   generateDetailedFeedback,
   LANDMARK_INDICES,
