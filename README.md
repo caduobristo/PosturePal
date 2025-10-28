@@ -1,12 +1,8 @@
 # Como Testar o PosturePal
 
-## Android Studio
+## Instalar pacotes
 
-1. Abra o Android Studio
-2. Open Project → `PosturePal\app\frontend\android`
-4. Clique no botão (Run) ou pressione Shift+F10
-5. Selecione seu disp na lista de dispositivos
-6. Aguarde a instalação e teste o app
+1. Vá para `\app\frontend` e rode `npm install`.
 
 ## Scripts PowerShell
 
@@ -24,3 +20,10 @@ Atualiza o código Android após modificar arquivos React:
 ```
 Executa: `npm run build` + `npx cap sync android`
 
+## Android Studio
+
+1. Abra o Android Studio
+2. Open Project → `PosturePal\app\frontend\android`
+4. Clique no botão (Run) ou pressione Shift+F10
+5. Selecione seu disp na lista de dispositivos
+6. Aguarde a instalação e teste o app
