@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -15,55 +15,129 @@ import {
   Star,
   Trophy
 } from 'lucide-react';
-import { mockSessionHistory } from '../mock';
 import { getTopFeedbacks } from '../utils/getTopFeedbacks';
 import Landmark3DViewer from '../utils/3dmodel';
 import { analyzePosture } from '../utils/postureAnalysis';
+import { fetchSession } from '../lib/api';
 
 const SessionResult = () => {
   const { sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { exercise, scoreHistory, landmarksHistory, feedbacksHistory } = location.state || {};
-  let topFeedbacks = [];
-  const latestLandmarks = Array.isArray(landmarksHistory) && landmarksHistory.length > 0
-    ? landmarksHistory[landmarksHistory.length - 1]
-    : null;
+  const navigationState = location.state || {};
+  const {
+    exercise: navExercise,
+    scoreHistory: navScoreHistory,
+    landmarksHistory: navLandmarksHistory,
+    feedbacksHistory: navFeedbacksHistory,
+  } = navigationState;
+
+  const [sessionRecord, setSessionRecord] = useState(navigationState.session || null);
+  const [loadingSession, setLoadingSession] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+
+  useEffect(() => {
+    if ((navExercise && navScoreHistory) || !sessionId) {
+      return;
+    }
+
+    setLoadingSession(true);
+    setLoadError(null);
+    fetchSession(sessionId)
+      .then((response) => setSessionRecord(response))
+      .catch((err) => {
+        console.error('Failed to load session', err);
+        setLoadError(err);
+      })
+      .finally(() => setLoadingSession(false));
+  }, [navExercise, navScoreHistory, sessionId]);
+
+  const resolvedExercise =
+    navExercise ||
+    (sessionRecord
+      ? {
+          id: sessionRecord.exercise_id,
+          name: sessionRecord.exercise_name || 'Recorded Exercise',
+          difficulty: sessionRecord.exercise_difficulty || 'Custom',
+          description: sessionRecord.exercise_description || '',
+          keyPoints: sessionRecord.key_points || [],
+        }
+      : null);
+
+  const resolvedScoreHistory =
+    navScoreHistory ||
+    (sessionRecord && typeof sessionRecord.score === 'number'
+      ? [sessionRecord.score]
+      : []);
+
+  const resolvedLandmarksHistory =
+    navLandmarksHistory ||
+    (Array.isArray(sessionRecord?.landmark_frames)
+      ? sessionRecord.landmark_frames
+      : []);
+
+  const resolvedFeedbacksHistory =
+    navFeedbacksHistory ||
+    (Array.isArray(sessionRecord?.feedback) ? sessionRecord.feedback : []);
+
+  const latestLandmarks =
+    Array.isArray(resolvedLandmarksHistory) && resolvedLandmarksHistory.length > 0
+      ? resolvedLandmarksHistory[resolvedLandmarksHistory.length - 1]
+      : null;
+
   const latestAnalysis = useMemo(() => {
-    if (!latestLandmarks || !exercise) return null;
-    return analyzePosture(latestLandmarks, exercise);
-  }, [latestLandmarks, exercise]);
+    if (!latestLandmarks || !resolvedExercise) return null;
+    return analyzePosture(latestLandmarks, resolvedExercise);
+  }, [latestLandmarks, resolvedExercise]);
 
-  if (!exercise || !scoreHistory) {
-      return (
-        <div className="p-6 text-center">
-          <p className="text-red-600">Session data not available.</p>
-          <Button onClick={() => navigate('/exercises')} className="mt-4">
-            Come back to exercises
-          </Button>
-        </div>
-      );
-    }
+  const feedbackArray = Array.isArray(resolvedFeedbacksHistory)
+    ? resolvedFeedbacksHistory
+    : [];
 
-    if (feedbacksHistory && feedbacksHistory.length > 0) {
-        topFeedbacks = getTopFeedbacks(feedbacksHistory);
-    }
+  const topFeedbacks = useMemo(
+    () => getTopFeedbacks(feedbackArray),
+    [feedbackArray],
+  );
 
-    const average = (
-      scoreHistory.reduce((acc, s) => acc + s, 0) / scoreHistory.length
-    ).toFixed(1);
+  const scoreHistoryValues = Array.isArray(resolvedScoreHistory)
+    ? resolvedScoreHistory
+    : [];
 
-  // Get session data from navigation state or mock data
-  const sessionFromState = location.state;
-  const sessionFromMock = mockSessionHistory.find(s => s.id === sessionId);
-  
-  const session = sessionFromState || sessionFromMock || {
-    exercise: 'Unknown Exercise',
-    score: 0,
-    feedback: 'No feedback available',
-    keyMetrics: { alignment: 0, balance: 0, form: 0 }
-  };
+  const averageValue =
+    scoreHistoryValues.length > 0
+      ? scoreHistoryValues.reduce((acc, s) => acc + s, 0) / scoreHistoryValues.length
+      : typeof sessionRecord?.score === 'number'
+      ? sessionRecord.score
+      : 0;
+  const average = averageValue.toFixed(1);
+
+  const sessionScore = Number(
+    typeof sessionRecord?.score === 'number'
+      ? sessionRecord.score
+      : scoreHistoryValues[scoreHistoryValues.length - 1] || 0,
+  );
+
+  if (loadingSession && !navScoreHistory) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-slate-600">Loading session details…</p>
+      </div>
+    );
+  }
+
+  if (!resolvedExercise) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-red-600">
+          {loadError ? 'Unable to load session data.' : 'Session data not available.'}
+        </p>
+        <Button onClick={() => navigate('/exercises')} className="mt-4">
+          Come back to exercises
+        </Button>
+      </div>
+    );
+  }
 
   const getScoreColor = (score) => {
     if (score >= 95) return 'bg-green-400';
@@ -110,7 +184,7 @@ const SessionResult = () => {
 
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Session Complete!</h1>
-          <p className="text-slate-600 text-sm">{exercise.name} Analysis</p>
+          <p className="text-slate-600 text-sm">{resolvedExercise.name} Analysis</p>
         </div>
       </div>
 
@@ -125,7 +199,7 @@ const SessionResult = () => {
                   <div className="text-sm opacity-90">/ 100</div>
                 </div>
               </div>
-              {session.score >= 90 && (
+              {sessionScore >= 90 && (
                 <div className="absolute -top-2 -right-2">
                   <div className="w-10 h-10 bg-amber-400 rounded-full flex items-center justify-center shadow-lg">
                     <Trophy className="w-5 h-5 text-white" />
