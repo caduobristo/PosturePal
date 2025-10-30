@@ -19,11 +19,14 @@ import { mockSessionHistory } from '../mock';
 import { getTopFeedbacks } from '../utils/getTopFeedbacks';
 import Landmark3DViewer from '../utils/3dmodel';
 import { analyzePosture } from '../utils/postureAnalysis';
+import { generatePDFReport } from '../utils/pdfGenerator';
+import { useToast } from '../hooks/use-toast';
 
 const SessionResult = () => {
   const { sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const { exercise, scoreHistory, landmarksHistory, feedbacksHistory } = location.state || {};
   let topFeedbacks = [];
@@ -83,7 +86,38 @@ const SessionResult = () => {
     return { text: 'Keep Practicing! 🌟', class: 'bg-rose-100 text-rose-700' };
   };
 
-  const badge = getScoreBadge(average);
+  const badge = getScoreBadge(average);  const handleDownloadPDF = async () => {
+    const sessionData = {
+      exercise: exercise,
+      scoreHistory: scoreHistory,
+      average: parseFloat(average),
+      topFeedbacks: topFeedbacks,
+      date: new Date().toLocaleDateString('pt-BR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+
+    try {
+      await generatePDFReport(sessionData);
+      toast({
+        title: "PDF Downloaded! 📄",
+        description: "Your session report has been successfully saved.",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF report. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-rose-50 via-white to-purple-50">
@@ -97,12 +131,16 @@ const SessionResult = () => {
             className="text-slate-600 hover:text-slate-800 p-2"
           >
             <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex space-x-2">
+          </Button>          <div className="flex space-x-2">
             <Button variant="outline" size="sm" className="border-slate-200 text-slate-600">
               <Share className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" className="border-slate-200 text-slate-600">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-slate-200 text-slate-600"
+              onClick={handleDownloadPDF}
+            >
               <Download className="w-4 h-4" />
             </Button>
           </div>
@@ -233,11 +271,10 @@ const SessionResult = () => {
           className="w-full h-12 border-slate-200 text-slate-700 hover:bg-slate-50"
         >
           Back to Dashboard
-        </Button>
-
-        <Button 
+        </Button>        <Button 
           variant="outline" 
           className="w-full h-12 border-purple-200 text-purple-700 hover:bg-purple-50"
+          onClick={handleDownloadPDF}
         >
           <Download className="w-4 h-4 mr-2" />
           Export Detailed Report
