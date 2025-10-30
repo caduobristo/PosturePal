@@ -90,7 +90,14 @@ const SessionResult = () => {
       : null;
 
   const latestAnalysis = useMemo(() => {
-    if (!latestLandmarks || !resolvedExercise) return null;
+    if (
+      !latestLandmarks ||
+      !resolvedExercise ||
+      !Array.isArray(latestLandmarks) ||
+      latestLandmarks.length < 33
+    ) {
+      return null;
+    }
     return analyzePosture(latestLandmarks, resolvedExercise);
   }, [latestLandmarks, resolvedExercise]);
 
