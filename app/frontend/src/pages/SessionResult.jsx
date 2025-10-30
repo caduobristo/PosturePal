@@ -160,35 +160,29 @@ const SessionResult = () => {
     return { text: 'Keep Practicing! 🌟', class: 'bg-rose-100 text-rose-700' };
   };
 
-  const badge = getScoreBadge(average);  const handleDownloadPDF = async () => {
-    const sessionData = {
-      exercise: exercise,
-      scoreHistory: scoreHistory,
-      average: parseFloat(average),
-      topFeedbacks: topFeedbacks,
-      date: new Date().toLocaleDateString('pt-BR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    };
+  const badge = getScoreBadge(Number(average));
+
+  const handleDownloadPDF = async () => {
+    if (!resolvedExercise) return;
 
     try {
-      await generatePDFReport(sessionData);
+      await generatePDFReport({
+        exercise: resolvedExercise,
+        scoreHistory:
+          scoreHistoryValues.length > 0 ? scoreHistoryValues : [sessionScore],
+        average: averageValue,
+        topFeedbacks,
+        date: sessionRecord?.created_at || new Date().toISOString(),
+      });
       toast({
-        title: "PDF Downloaded! 📄",
-        description: "Your session report has been successfully saved.",
-        duration: 3000,
+        title: 'PDF generated',
+        description: 'Your session report has been saved.',
       });
     } catch (error) {
-      console.error('PDF generation error:', error);
       toast({
-        title: "Error",
-        description: "Failed to generate PDF report. Please try again.",
-        variant: "destructive",
-        duration: 3000,
+        title: 'Failed to generate PDF',
+        description: error?.message || 'Try again in a moment.',
+        variant: 'destructive',
       });
     }
   };

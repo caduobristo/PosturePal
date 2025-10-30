@@ -1,30 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { 
+import {
   Camera,
   ArrowLeft,
   Play,
   RotateCcw,
   CheckCircle,
-  Target,
-  Zap,
   Info,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
-import { mockBalletExercises, mockCameraSession } from '../mock';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../hooks/use-toast';
 import { useMediaPipePose } from '../hooks/useMediaPipePose';
 import { analyzePosture, generateDetailedFeedback } from '../utils/postureAnalysis';
+import {
+  EXERCISES,
+  DEFAULT_CAMERA_SESSION_STATE,
+  getExerciseById,
+} from '../data/exercises';
+import { createSession } from '../lib/api';
 
 const CameraEvaluation = () => {
   const { exerciseId } = useParams();
   const navigate = useNavigate();
-  const [session, setSession] = useState(mockCameraSession);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [session, setSession] = useState(() => ({
+    ...DEFAULT_CAMERA_SESSION_STATE,
+  }));
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [countdown, setCountdown] = useState(null);
-
+  const [savingSession, setSavingSession] = useState(false);
   const [score, setScore] = useState(0);
   const [scoreHistory, setScoreHistory] = useState([]);
   const [landmarksHistory, setLandmarksHistory] = useState([]);
@@ -35,11 +44,12 @@ const CameraEvaluation = () => {
   const scoreHistoryRef = useRef([]);
   const landmarksHistoryRef = useRef([]);
   const feedbacksHistoryRef = useRef([]);
-  
-  const exercise = mockBalletExercises.find(ex => ex.id === exerciseId);
-  
-  // Hook do MediaPipe
-  const { videoRef, canvasRef, isReady, landmarks, error, stopCamera } = useMediaPipePose();
+  const metricsRef = useRef(null);
+
+  const exercise = useMemo(() => getExerciseById(exerciseId), [exerciseId]);
+
+  const { videoRef, canvasRef, isReady, landmarks, error, stopCamera } =
+    useMediaPipePose();
   const countdownIntervalRef = useRef(null);
   const analysisTimeoutRef = useRef(null);
 
@@ -61,6 +71,7 @@ const CameraEvaluation = () => {
   }, []);
 
   const startEvaluation = () => {
+    if (savingSession) return;
     if (!isReady) {
       alert('Camera is not ready. Wait a minute.');
       return;
@@ -70,11 +81,12 @@ const CameraEvaluation = () => {
     scoreHistoryRef.current = [];
     landmarksHistoryRef.current = [];
     feedbacksHistoryRef.current = [];
+    metricsRef.current = null;
     setScoreHistory([]);
     setLandmarksHistory([]);
     setFeedbacksHistory([]);
     setCountdown(3);
-    setSession(prev => ({ ...prev, isActive: true }));
+    setSession((prev) => ({ ...prev, isActive: true }));
     setIsAnalyzing(false);
 
     let timeLeft = 3;
@@ -97,65 +109,157 @@ const CameraEvaluation = () => {
     }, 1000);
   };
 
-  const stopEvaluation = () => {
+  const buildLandmarkPayload = (frames) =>
+    frames.map((frame) =>
+      frame.map((point) => ({
+        x: point.x ?? 0,
+        y: point.y ?? 0,
+        z: point.z ?? 0,
+        visibility:
+          typeof point.visibility === 'number' ? point.visibility : 1,
+      })),
+    );
+
+  const transformMetrics = (metrics) => ({
+    shoulder_alignment:
+      metrics?.shoulder_alignment ?? metrics?.shoulderAlignment ?? 0,
+    hip_alignment: metrics?.hip_alignment ?? metrics?.hipAlignment ?? 0,
+    spine_alignment: metrics?.spine_alignment ?? metrics?.spineAlignment ?? 0,
+    knee_angle: metrics?.knee_angle ?? metrics?.kneeAngle ?? 0,
+    left_arm_extension:
+      metrics?.left_arm_extension ?? metrics?.leftArmExtension ?? 0,
+    right_arm_extension:
+      metrics?.right_arm_extension ?? metrics?.rightArmExtension ?? 0,
+    left_arm_height:
+      metrics?.left_arm_height ?? metrics?.leftArmHeight ?? 0,
+    right_arm_height:
+      metrics?.right_arm_height ?? metrics?.rightArmHeight ?? 0,
+  });
+
+  const stopEvaluation = async () => {
+    if (savingSession) return;
     clearTimers();
     setCountdown(null);
     const finalScoreHistory = scoreHistoryRef.current;
     const finalLandmarksHistory = landmarksHistoryRef.current;
     const finalFeedbacksHistory = feedbacksHistoryRef.current;
 
-    setSession(mockCameraSession);
+    setSession({ ...DEFAULT_CAMERA_SESSION_STATE });
     setIsAnalyzing(false);
     stopCamera();
 
-    navigate('/result/1', {
+    if (!exercise) {
+      toast({
+        title: 'Exercise unavailable',
+        description: 'Unable to identify the selected exercise.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!user?.id) {
+      toast({
+        title: 'User not authenticated',
+        description: 'Please log in again before saving the session.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
+    const averageScore =
+      finalScoreHistory.length > 0
+        ? Math.round(
+            finalScoreHistory.reduce((acc, value) => acc + value, 0) /
+              finalScoreHistory.length,
+          )
+        : Math.round(score || 0);
+
+    const payload = {
+      user_id: user.id,
+      exercise_id: exercise.id,
+      exercise_name: exercise.name,
+      score: averageScore,
+      feedback: finalFeedbacksHistory,
+      metrics: transformMetrics(metricsRef.current),
+      landmark_frames: buildLandmarkPayload(finalLandmarksHistory),
+    };
+
+    try {
+      setSavingSession(true);
+      const savedSession = await createSession(payload);
+      toast({
+        title: 'Session saved',
+        description: 'Your posture session was stored successfully.',
+      });
+      navigate(`/result/${savedSession.id}`, {
         state: {
-           exercise,
-           scoreHistory: finalScoreHistory,
-           landmarksHistory: finalLandmarksHistory,
-           feedbacksHistory: finalFeedbacksHistory,
+          exercise,
+          scoreHistory: finalScoreHistory,
+          landmarksHistory: finalLandmarksHistory,
+          feedbacksHistory: finalFeedbacksHistory,
+          session: savedSession,
         },
-    });
+      });
+    } catch (err) {
+      let message =
+        err?.data?.detail ||
+        err?.message ||
+        'Unable to save the session. Please try again.';
+      if (Array.isArray(message)) {
+        message = message
+          .map((item) => item?.msg || item?.message || JSON.stringify(item))
+          .join(', ');
+      }
+      toast({
+        title: 'Failed to save session',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingSession(false);
+    }
   };
-
   useEffect(() => {
-      if (!isAnalyzing || !landmarks?.length || !exercise) return;
+    if (!isAnalyzing || !landmarks?.length || !exercise) return;
 
-      const { score, feedback } = analyzePosture(landmarks, exercise);
-      const feedbackSummary = generateDetailedFeedback(score);
+    const analysis = analyzePosture(landmarks, exercise);
+    if (!analysis) return;
 
-      console.log('landmarks:', landmarks);
-      console.log('score:', score);
-      console.log('feedbacks:', feedback);
-      console.log('feedback summary:', feedbackSummary);
+    const { score: computedScore, feedback, metrics } = analysis;
+    const feedbackSummary = generateDetailedFeedback(computedScore);
 
-      setScore(score);
-      setFeedbacks(feedback);
-      setScoreFeedback(feedbackSummary);
-      setScoreHistory(prevHistory => {
-        const updated = [...prevHistory, score];
-        scoreHistoryRef.current = updated;
-        return updated;
-      });
-      setLandmarksHistory(prevHistory => {
-        const updated = [...prevHistory, landmarks];
-        landmarksHistoryRef.current = updated;
-        return updated;
-      });
-      setFeedbacksHistory(prevHistory => {
-        const updated = [...prevHistory, ...feedback];
-        feedbacksHistoryRef.current = updated;
-        return updated;
-      });
+    setScore(computedScore);
+    setFeedbacks(feedback);
+    setScoreFeedback(feedbackSummary);
+    metricsRef.current = metrics;
 
-    }, [landmarks, isAnalyzing, exercise]);
+    setScoreHistory((prevHistory) => {
+      const updated = [...prevHistory, computedScore];
+      scoreHistoryRef.current = updated;
+      return updated;
+    });
+    setLandmarksHistory((prevHistory) => {
+      const updated = [...prevHistory, landmarks];
+      landmarksHistoryRef.current = updated;
+      return updated;
+    });
+    setFeedbacksHistory((prevHistory) => {
+      const updated = [...prevHistory, ...feedback];
+      feedbacksHistoryRef.current = updated;
+      return updated;
+    });
+  }, [landmarks, isAnalyzing, exercise]);
 
   if (!exercise) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-rose-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-bold text-slate-800 mb-2">Exercise not found</h2>
-          <Button onClick={() => navigate('/exercises')} className="bg-gradient-to-r from-rose-500 to-purple-600">
+          <Button
+            onClick={() => navigate('/exercises')}
+            className="bg-gradient-to-r from-rose-500 to-purple-600"
+          >
             Back to Exercises
           </Button>
         </div>
@@ -168,9 +272,9 @@ const CameraEvaluation = () => {
       {/* Header */}
       <div className="px-6 pt-8 pb-4">
         <div className="flex items-center justify-between mb-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigate('/exercises')}
             className="text-slate-600 hover:text-slate-800 p-2"
           >
@@ -192,15 +296,10 @@ const CameraEvaluation = () => {
         <Card className="border-0 shadow-2xl bg-black/5 backdrop-blur-sm overflow-hidden">
           <CardContent className="p-0">
             <div className="relative aspect-[3/4] bg-gradient-to-br from-slate-800 to-slate-900">
-              
-              {/* Vídeo oculto (usado pelo MediaPipe) */}
-              <video
-                ref={videoRef}
-                style={{ display: 'none' }}
-                playsInline
-              />
-              
-              {/* Canvas com detecção de pose */}
+              {/* Video element for MediaPipe */}
+              <video ref={videoRef} style={{ display: 'none' }} playsInline />
+
+              {/* Canvas with pose detection */}
               <canvas
                 ref={canvasRef}
                 width={640}
@@ -208,12 +307,12 @@ const CameraEvaluation = () => {
                 className="absolute inset-0 w-full h-full object-cover"
               />
 
-              {/* Erro de câmera */}
+              {/* Camera error */}
               {error && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/70">
                   <div className="text-center text-white p-6">
                     <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
-                    <p className="text-sm mb-2">Error: can't acess the camera</p>
+                    <p className="text-sm mb-2">Error: can't access the camera</p>
                     <p className="text-xs text-white/70">{error}</p>
                   </div>
                 </div>
@@ -332,7 +431,7 @@ const CameraEvaluation = () => {
         {!session.isActive ? (
           <Button
             onClick={startEvaluation}
-            disabled={!isReady}
+            disabled={!isReady || savingSession}
             className="w-full h-14 bg-gradient-to-r from-rose-500 to-purple-600 hover:from-rose-600 hover:to-purple-700 text-white font-medium shadow-lg disabled:opacity-50"
           >
             {!isReady ? (
@@ -350,7 +449,8 @@ const CameraEvaluation = () => {
         ) : (
           <Button
             onClick={stopEvaluation}
-            className="w-full h-14 bg-red-500 hover:bg-red-600 text-white font-medium shadow-lg"
+            disabled={savingSession}
+            className="w-full h-14 bg-red-500 hover:bg-red-600 text-white font-medium shadow-lg disabled:opacity-50"
           >
             <RotateCcw className="w-5 h-5 mr-2" />
             Stop camera

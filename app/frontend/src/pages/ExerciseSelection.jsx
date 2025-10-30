@@ -13,7 +13,7 @@ import {
   ChevronRight,
   Camera
 } from 'lucide-react';
-import { mockBalletExercises } from '../mock';
+import { EXERCISES } from '../data/exercises';
 
 const ExerciseSelection = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,7 +21,7 @@ const ExerciseSelection = () => {
 
   const difficulties = ['All', 'Beginner', 'Intermediate', 'Advanced'];
 
-  const filteredExercises = mockBalletExercises.filter(exercise => {
+  const filteredExercises = EXERCISES.filter(exercise => {
     const matchesSearch = exercise.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          exercise.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDifficulty = selectedDifficulty === 'All' || exercise.difficulty === selectedDifficulty;

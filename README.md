@@ -52,6 +52,38 @@ Finalize com `Ctrl+C`. O container Mongo permanece ativo; pare manualmente com `
 
 ---
 
+## Autenticação e sessões
+
+- **Credenciais demo** continuam disponíveis para apresentação rápida:
+  - Email: `admin@ballet.com`
+  - Senha: `admin`
+  - A tela de login possui o botão “Use Demo Credentials”, com toast indicando “Demo Mode”.
+
+- **Cadastro real**: utilize a aba “Sign Up” na tela de login. As credenciais são validadas pelo backend (`POST /api/users`) e salvas no MongoDB. Após o cadastro, o login é automático.
+
+- **Fluxo da câmera**:
+  1. Escolha um exercício em **Practice**.
+  2. Inicie a avaliação. Durante cinco segundos o MediaPipe coleta landmarks e calcula `score`, `feedback` e `metrics`.
+  3. Ao final, os dados são enviados para `POST /api/sessions`. O retorno (com `id`) é usado para navegar para `/result/{id}`.
+  4. **Dashboard** e **Profile** consomem `GET /api/users/{user_id}/sessions`; portanto, cada nova sessão salva atualiza as estatísticas automaticamente.
+
+- **Conferindo dados**:
+  ```bash
+  # Usuário recém logado
+  curl -X POST http://localhost:8000/api/auth/login \
+       -H "Content-Type: application/x-www-form-urlencoded" \
+       -d "username=seu-email&password=sua-senha"
+
+  # Histórico do usuário
+  curl http://localhost:8000/api/users/<id>/sessions
+
+  # Conferência no Mongo
+  docker exec posturepal-mongo mongosh --quiet \
+    --eval "use posturepal; db.sessions.find().pretty()"
+  ```
+
+---
+
 ## Ajustando IPs para uso em rede local ou mobile
 
 1. **Frontend (`app/frontend/.env`)**  

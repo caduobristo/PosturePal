@@ -15,10 +15,14 @@ import {
   Settings,
   AlertCircle
 } from 'lucide-react';
-import { mockLiveSession } from '../mock';
+const INITIAL_SESSION_STATE = {
+  isActive: false,
+  isRecording: false,
+  currentPosition: 'Standby',
+};
 
 const LiveView = () => {
-  const [session, setSession] = useState(mockLiveSession);
+  const [session, setSession] = useState(INITIAL_SESSION_STATE);
   const [sessionTimer, setSessionTimer] = useState(0);
 
   useEffect(() => {

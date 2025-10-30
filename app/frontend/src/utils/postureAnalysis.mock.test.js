@@ -1,5 +1,5 @@
 import { analyzePosture } from './postureAnalysis';
-import { mockBalletExercises } from '../mock';
+import { EXERCISES } from '../data/exercises';
 
 const buildBaseLandmarks = () =>
   Array.from({ length: 33 }, () => ({
@@ -44,7 +44,7 @@ const makeSlouchedPose = () => {
 };
 
 describe('postureAnalysis mock poses', () => {
-  const exercise = mockBalletExercises.find((ex) => ex.name === 'Second Position');
+  const exercise = EXERCISES.find((ex) => ex.name === 'Second Position');
 
   it('scores a balanced pose with high score', () => {
     const result = analyzePosture(makeBalancedPose(), exercise);

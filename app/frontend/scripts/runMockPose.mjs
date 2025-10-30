@@ -1,8 +1,7 @@
 import postureModule from '../src/utils/postureAnalysis.js';
-import mockModule from '../src/mock.js';
+import { EXERCISES } from '../src/data/exercises.js';
 
 const { analyzePosture } = postureModule;
-const { mockBalletExercises } = mockModule;
 
 const buildBaseLandmarks = () =>
   Array.from({ length: 33 }, () => ({
@@ -55,7 +54,7 @@ const makeSlouchedPose = () => {
   return pose;
 };
 
-const exercise = mockBalletExercises.find((ex) => ex.name === 'First Position');
+const exercise = EXERCISES.find((ex) => ex.name === 'First Position');
 
 const balancedResult = analyzePosture(makeBalancedPose(), exercise);
 const slouchedResult = analyzePosture(makeSlouchedPose(), exercise);
