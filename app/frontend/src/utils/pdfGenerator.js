@@ -382,41 +382,37 @@ export const generatePDFReport = async (sessionData) => {
     .replace(/[^A-Za-z0-9_\- ]/g, '')
     .replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
   
-  // Salva o PDF apenas em dispositivos móveis (Capacitor)
   if (Capacitor.isNativePlatform()) {
     try {
-      // Obtém o PDF em formato base64
-      const pdfData = doc.output('datauristring').split(',')[1];
-      
-      // Salva o arquivo no dispositivo (diretório de documentos)
+      const pdfBuffer = doc.output('arraybuffer');
+      const pdfData = bufferToBase64(pdfBuffer);
       let result = await Filesystem.writeFile({
         path: fileName,
         data: pdfData,
         directory: Directory.Documents,
-        recursive: true
+        recursive: true,
       });
 
-      // Caso alguma ROM não permita Documents, tenta ExternalStorage (Android)
       if (!result || !result.uri) {
         result = await Filesystem.writeFile({
           path: fileName,
           data: pdfData,
           directory: Directory.ExternalStorage,
-          recursive: true
+          recursive: true,
         });
       }
 
       console.log('PDF salvo em:', result.uri);
       return { success: true, uri: result.uri };
     } catch (error) {
-      // Tenta fallback para ExternalStorage se possível
       try {
-        const pdfData = doc.output('datauristring').split(',')[1];
+        const pdfBuffer = doc.output('arraybuffer');
+        const pdfData = bufferToBase64(pdfBuffer);
         const result = await Filesystem.writeFile({
           path: fileName,
           data: pdfData,
           directory: Directory.ExternalStorage,
-          recursive: true
+          recursive: true,
         });
         console.log('PDF salvo (fallback) em:', result.uri);
         return { success: true, uri: result.uri };
@@ -426,6 +422,10 @@ export const generatePDFReport = async (sessionData) => {
       }
     }
   }
+
+  // Ambiente web: download direto
+  doc.save(fileName);
+  return { success: true, uri: fileName };
 };
 
 /**
