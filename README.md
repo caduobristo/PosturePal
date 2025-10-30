@@ -8,20 +8,20 @@ Aplicativo híbrido (React + Capacitor) para avaliação de postura em ballet co
 
 | Ferramenta | Versão mínima sugerida | Observações |
 |------------|------------------------|-------------|
-| [Docker](https://docs.docker.com/get-docker/) | 20+ | Usado para iniciar o Mongo local (`mongo:7`). |
+| [Python](https://www.python.org/downloads/) | 3.11+ | Cria a virtualenv `.venv` e (opcional) instala o backend. |
 | [Python](https://www.python.org/downloads/) | 3.11+ | Cria a virtualenv `.venv` e instala o backend. |
 | [Node.js](https://nodejs.org/en/download/) | 18.x | Necessário para o frontend (React + Capacitor). |
 | Android Studio / Xcode (opcional) | — | Apenas se for gerar APK/IPA. |
 
-Certifique-se de ter `docker`, `python`, `npm`/`npx` disponíveis no `PATH` antes de executar os scripts.
+Certifique-se de ter `python`, `npm`/`npx` disponíveis no `PATH` antes de executar os scripts.
 
 ---
 
-## Início rápido (backend + frontend + Mongo)
+## Início rápido (frontend - local)
 
 ### Windows (PowerShell)
 ```powershell
-cd C:\Users\caduo\OneDrive\Documentos\PosturePal
+cd C:\caminho\para\PosturePal
 powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
 ```
 
@@ -31,23 +31,15 @@ cd /caminho/para/PosturePal
 bash scripts/dev.sh
 ```
 
-Esses scripts:
-1. Verificam dependências (`docker`, `python`, `npm`, `npx`).
-2. Criam ou sobem o container `posturepal-mongo` (porta `27017`).
-3. Preparam a virtualenv `.venv` e instalam `app/backend/requirements.txt` (inclui `bcrypt`).
-4. Executam `npm install` em `app/frontend` quando necessário.
-5. Exportam `REACT_APP_API_URL` (pode sobrescrever antes de iniciar).
-6. Iniciam backend (`uvicorn` em `http://localhost:8000`) e frontend (`npm start` em `http://localhost:3000`) via `npx concurrently`.
-
-Finalize com `Ctrl+C`. O container Mongo permanece ativo; pare manualmente com `docker stop posturepal-mongo` se quiser desligar.
+Esses scripts instalão dependências do frontend e iniciam a aplicação React/Capacitor localmente. O frontend agora usa um banco local (SQLite via plugin Capacitor, quando disponível, ou fallback para localStorage) e não depende mais de um backend ou container Mongo para rodar em modo demo/local.
 
 ---
 
 ## Scripts úteis
 
-- `scripts/dev.ps1`: fluxo completo no Windows (Mongo + backend + frontend).
-- `scripts/dev.sh`: equivalente em Bash (macOS/Linux ou WSL).
-- `scripts/backend.ps1`: inicia apenas Mongo e backend FastAPI (útil quando o app Android/iOS já está empacotado).
+- `scripts/dev.ps1`: instala dependências do frontend e inicia o frontend no Windows.
+- `scripts/dev.sh`: instala dependências do frontend e inicia o frontend no macOS/Linux.
+- `scripts/backend.ps1`: (opcional) prepara Python venv e inicia o backend FastAPI sem tentar gerenciar Mongo. If you need Mongo-backed backend, set up a Mongo instance and configure `app/backend/.env` accordingly.
 - `scripts/start-backend.ps1` / `scripts/start-frontend.ps1`: utilizados internamente pelo `dev.ps1`, mas podem ser executados isoladamente para depuração.
 
 ---

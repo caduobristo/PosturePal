@@ -22,6 +22,16 @@ const bufferToBase64 = (buffer) => {
 
 // Tenta carregar a fonte Inter (Regular/Bold) de /fonts (pasta public). Se não achar, usa Helvetica.
 const ensureInterFont = async (doc) => {
+  // On native (Capacitor) builds the app serves assets differently and
+  // attempting to fetch /fonts/... from the WebView can produce noisy
+  // "Unable to open asset URL" logs if the files are not present in
+  // the native assets bundle. In that case we skip fetching and let
+  // the generator fall back to the built-in Helvetica font.
+  if (Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()) {
+    __pdfFontLoaded = false;
+    return;
+  }
+
   if (__pdfFontLoaded) return;
   try {
     const [regRes, boldRes] = await Promise.all([
@@ -382,41 +392,37 @@ export const generatePDFReport = async (sessionData) => {
     .replace(/[^A-Za-z0-9_\- ]/g, '')
     .replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
   
-  // Salva o PDF apenas em dispositivos móveis (Capacitor)
   if (Capacitor.isNativePlatform()) {
     try {
-      // Obtém o PDF em formato base64
-      const pdfData = doc.output('datauristring').split(',')[1];
-      
-      // Salva o arquivo no dispositivo (diretório de documentos)
+      const pdfBuffer = doc.output('arraybuffer');
+      const pdfData = bufferToBase64(pdfBuffer);
       let result = await Filesystem.writeFile({
         path: fileName,
         data: pdfData,
         directory: Directory.Documents,
-        recursive: true
+        recursive: true,
       });
 
-      // Caso alguma ROM não permita Documents, tenta ExternalStorage (Android)
       if (!result || !result.uri) {
         result = await Filesystem.writeFile({
           path: fileName,
           data: pdfData,
           directory: Directory.ExternalStorage,
-          recursive: true
+          recursive: true,
         });
       }
 
       console.log('PDF salvo em:', result.uri);
       return { success: true, uri: result.uri };
     } catch (error) {
-      // Tenta fallback para ExternalStorage se possível
       try {
-        const pdfData = doc.output('datauristring').split(',')[1];
+        const pdfBuffer = doc.output('arraybuffer');
+        const pdfData = bufferToBase64(pdfBuffer);
         const result = await Filesystem.writeFile({
           path: fileName,
           data: pdfData,
           directory: Directory.ExternalStorage,
-          recursive: true
+          recursive: true,
         });
         console.log('PDF salvo (fallback) em:', result.uri);
         return { success: true, uri: result.uri };
@@ -426,6 +432,10 @@ export const generatePDFReport = async (sessionData) => {
       }
     }
   }
+
+  // Ambiente web: download direto
+  doc.save(fileName);
+  return { success: true, uri: fileName };
 };
 
 /**
