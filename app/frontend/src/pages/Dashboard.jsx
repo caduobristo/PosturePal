@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -17,12 +17,46 @@ import {
   Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { mockSessionHistory, mockProgressData } from '../mock';
+import useUserSessions from '../hooks/useUserSessions';
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const recentSessions = mockSessionHistory.slice(0, 3);
-  const weeklyAverage = Math.round(mockProgressData.slice(-7).reduce((acc, day) => acc + day.score, 0) / 7);
+  const { sessions, loading: loadingSessions } = useUserSessions(user?.id);
+
+  const stats = useMemo(() => {
+    if (!sessions?.length) {
+      return {
+        recentSessions: [],
+        weeklyAverage: 0,
+        bestScore: user?.bestScore || 0,
+        totalSessions: user?.totalSessions || 0,
+        streakDays: user?.streakDays || 0,
+      };
+    }
+
+    const sortedSessions = [...sessions].sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at),
+    );
+
+    const recentSessions = sortedSessions.slice(0, 3);
+    const lastWeekSessions = sortedSessions.slice(0, 7);
+    const weeklyAverage = Math.round(
+      lastWeekSessions.reduce((acc, session) => acc + (session.score || 0), 0) /
+        Math.max(lastWeekSessions.length, 1),
+    );
+    const bestScore = sortedSessions.reduce(
+      (best, session) => Math.max(best, session.score || 0),
+      0,
+    );
+
+    return {
+      recentSessions,
+      weeklyAverage,
+      bestScore,
+      totalSessions: sortedSessions.length,
+      streakDays: user?.streakDays || 0,
+    };
+  }, [sessions, user?.bestScore, user?.streakDays, user?.totalSessions]);
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-rose-50 via-white to-purple-50">
@@ -56,7 +90,9 @@ const Dashboard = () => {
                 <Target className="w-5 h-5 text-rose-600" />
                 <Badge className="bg-rose-100 text-rose-700 text-xs">Best</Badge>
               </div>
-              <div className="text-2xl font-bold text-slate-800 mb-1">{user?.bestScore}</div>
+              <div className="text-2xl font-bold text-slate-800 mb-1">
+                {stats.bestScore || user?.bestScore || 0}
+              </div>
               <div className="text-xs text-slate-600">Personal Best</div>
             </CardContent>
           </Card>
@@ -67,7 +103,9 @@ const Dashboard = () => {
                 <TrendingUp className="w-5 h-5 text-purple-600" />
                 <Badge className="bg-purple-100 text-purple-700 text-xs">Avg</Badge>
               </div>
-              <div className="text-2xl font-bold text-slate-800 mb-1">{weeklyAverage}</div>
+              <div className="text-2xl font-bold text-slate-800 mb-1">
+                {stats.weeklyAverage}
+              </div>
               <div className="text-xs text-slate-600">This Week</div>
             </CardContent>
           </Card>
@@ -97,7 +135,15 @@ const Dashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recentSessions.map((session) => (
+            {loadingSessions && (
+              <div className="text-sm text-slate-500">Loading your recent sessions…</div>
+            )}
+            {!loadingSessions && stats.recentSessions.length === 0 && (
+              <div className="text-sm text-slate-500">
+                No sessions recorded yet. Start practicing to see your progress here!
+              </div>
+            )}
+            {stats.recentSessions.map((session) => (
               <Link key={session.id} to={`/result/${session.id}`}>
                 <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-purple-200 hover:bg-purple-50/50 transition-all duration-200">
                   <div className="flex items-center space-x-3">
@@ -105,10 +151,12 @@ const Dashboard = () => {
                       <Target className="w-5 h-5 text-purple-600" />
                     </div>
                     <div>
-                      <div className="font-semibold text-slate-800 text-sm">{session.exercise}</div>
+                      <div className="font-semibold text-slate-800 text-sm">
+                        {session.exercise_name || session.exercise}
+                      </div>
                       <div className="text-xs text-slate-500 flex items-center">
                         <Clock className="w-3 h-3 mr-1" />
-                        {session.date} • {session.duration}
+                        {new Date(session.created_at || session.date).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -146,17 +194,23 @@ const Dashboard = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-600">Weekly Progress</span>
-                <span className="text-sm font-semibold text-slate-800">{weeklyAverage}/100</span>
+                <span className="text-sm font-semibold text-slate-800">
+                  {stats.weeklyAverage}/100
+                </span>
               </div>
-              <Progress value={weeklyAverage} className="h-3" />
+              <Progress value={stats.weeklyAverage} className="h-3" />
               
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="text-center p-3 bg-gradient-to-br from-rose-50 to-pink-50 rounded-lg">
-                  <div className="text-lg font-bold text-slate-800">{user?.totalSessions}</div>
+                  <div className="text-lg font-bold text-slate-800">
+                    {stats.totalSessions || user?.totalSessions || 0}
+                  </div>
                   <div className="text-xs text-slate-600">Total Sessions</div>
                 </div>
                 <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
-                  <div className="text-lg font-bold text-slate-800">{user?.streakDays}</div>
+                  <div className="text-lg font-bold text-slate-800">
+                    {stats.streakDays || user?.streakDays || 0}
+                  </div>
                   <div className="text-xs text-slate-600">Day Streak</div>
                 </div>
               </div>

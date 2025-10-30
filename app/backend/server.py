@@ -1,14 +1,15 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
-import uuid
-from datetime import datetime
+
+import schemas
+import db as db_helpers
 
 
 ROOT_DIR = Path(__file__).parent
@@ -26,31 +27,110 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+async def get_database():
+    return db
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
+@app.on_event("startup")
+async def startup_event():
+    await db_helpers.init_indexes(db)
+
+
+# Legacy status routes -------------------------------------------------------
+
 @api_router.get("/")
 async def root():
     return {"message": "Hello World"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+# User routes ----------------------------------------------------------------
+
+@api_router.post(
+    "/users",
+    response_model=schemas.UserPublic,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_user(
+    payload: schemas.UserCreate,
+    database=Depends(get_database),
+):
+    try:
+        user = await db_helpers.create_user(database, payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return user
+
+
+@api_router.post("/auth/login", response_model=schemas.UserPublic)
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    database=Depends(get_database),
+):
+    user = await db_helpers.get_user_by_email(database, form_data.username)
+    if not user or not db_helpers.verify_password(
+        form_data.password, user.password_hash
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+    return schemas.UserPublic(**user.dict())
+
+
+@api_router.get("/users/{user_id}", response_model=schemas.UserPublic)
+async def get_user(user_id: str, database=Depends(get_database)):
+    user = await db_helpers.get_user_by_id(database, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return schemas.UserPublic(**user.dict())
+
+
+# Session routes -------------------------------------------------------------
+
+@api_router.post(
+    "/sessions",
+    response_model=schemas.SessionPublic,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_session(
+    payload: schemas.SessionCreate,
+    database=Depends(get_database),
+):
+    # Ensure user exists
+    user = await db_helpers.get_user_by_id(database, payload.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user_id",
+        )
+    session = await db_helpers.create_session(database, payload)
+    return session
+
+
+@api_router.get(
+    "/sessions/{session_id}",
+    response_model=schemas.SessionPublic,
+)
+async def get_session(session_id: str, database=Depends(get_database)):
+    session = await db_helpers.get_session(database, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    return session
+
+
+@api_router.get(
+    "/users/{user_id}/sessions",
+    response_model=List[schemas.SessionPublic],
+)
+async def list_sessions_for_user(user_id: str, database=Depends(get_database)):
+    sessions = await db_helpers.list_sessions_for_user(database, user_id)
+    return sessions
 
 # Include the router in the main app
 app.include_router(api_router)
