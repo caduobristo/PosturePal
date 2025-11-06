@@ -27,8 +27,8 @@ export const useMediaPipePose = () => {
       smoothLandmarks: true,
       enableSegmentation: false,
       smoothSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7,
     });
 
     poseDetector.onResults((results) => {
