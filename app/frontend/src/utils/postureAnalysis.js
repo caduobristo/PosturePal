@@ -93,6 +93,16 @@ export const LANDMARK_INDICES = {
 
 const SHOULDER_ALIGNMENT_MAX_PENALTY = 10;
 
+// Helper: consider a landmark visible when it exists and has a visibility
+// score above the threshold. If visibility is not provided, treat it as
+// visible to preserve backward compatibility with inputs that don't
+// include a visibility property.
+const isVisible = (lm, threshold = 0.5) => {
+  if (!lm) return false;
+  if (typeof lm.visibility === 'number') return lm.visibility > threshold;
+  return true;
+};
+
 // Analyzes posture based on landmarks
 export const analyzePosture = (landmarks, exercise) => {
   if (!landmarks || landmarks.length === 0 || !exercise) {
@@ -117,9 +127,9 @@ export const analyzePosture = (landmarks, exercise) => {
   const leftShoulder = landmarks[LANDMARK_INDICES.LEFT_SHOULDER];
   const rightShoulder = landmarks[LANDMARK_INDICES.RIGHT_SHOULDER];
 
-  if (leftShoulder && rightShoulder) {
+  if (isVisible(leftShoulder) && isVisible(rightShoulder)) {
     const shoulderDiff = Math.abs(leftShoulder.y - rightShoulder.y);
-    penalty = calculatePenalty(shoulderDiff, 0.05, 0.4, SHOULDER_ALIGNMENT_MAX_PENALTY);
+    penalty = calculatePenalty(shoulderDiff, 0.05, 0.2, SHOULDER_ALIGNMENT_MAX_PENALTY);
     metrics.shoulderAlignment = calculateSeverity(
       penalty,
       SHOULDER_ALIGNMENT_MAX_PENALTY
@@ -142,18 +152,18 @@ export const analyzePosture = (landmarks, exercise) => {
     feedback.push({
       type: 'error',
       message: 'Shoulders not detected. Adjust the camera.',
-      score: -10,
+      score: -SHOULDER_ALIGNMENT_MAX_PENALTY,
     });
-    totalScore -= 10;
+    totalScore -= SHOULDER_ALIGNMENT_MAX_PENALTY;
   }
 
   // 2. Check hip alignment
   const leftHip = landmarks[LANDMARK_INDICES.LEFT_HIP];
   const rightHip = landmarks[LANDMARK_INDICES.RIGHT_HIP];
 
-  if (leftHip && rightHip) {
+  if (isVisible(leftHip) && isVisible(rightHip)) {
     const hipDiff = Math.abs(leftHip.y - rightHip.y);
-    penalty = calculatePenalty(hipDiff, 0.05, 0.4, 10);
+    penalty = calculatePenalty(hipDiff, 0.05, 0.2, 10);
     metrics.hipAlignment = calculateSeverity(penalty, 10);
 
     if (penalty > 0) {
@@ -181,14 +191,17 @@ export const analyzePosture = (landmarks, exercise) => {
 
   // 3. Check spine alignment (vertical posture)
   const nose = landmarks[LANDMARK_INDICES.NOSE];
-  const midHip = {
-    x: (leftHip.x + rightHip.x) / 2,
-    y: (leftHip.y + rightHip.y) / 2,
-  };
+  let midHip = null;
+  if (isVisible(leftHip) && isVisible(rightHip)) {
+    midHip = {
+      x: (leftHip.x + rightHip.x) / 2,
+      y: (leftHip.y + rightHip.y) / 2,
+    };
+  }
 
-  if (nose && midHip) {
+  if (isVisible(nose) && midHip) {
     const spineAlignment = Math.abs(nose.x - midHip.x);
-    penalty = calculatePenalty(spineAlignment, 0.1, 0.4, 15);
+    penalty = calculatePenalty(spineAlignment, 0.1, 0.2, 15);
     metrics.spineAlignment = calculateSeverity(penalty, 15);
 
     if (penalty > 0) {
@@ -218,7 +231,7 @@ export const analyzePosture = (landmarks, exercise) => {
   const leftKnee = landmarks[LANDMARK_INDICES.LEFT_KNEE];
   const leftAnkle = landmarks[LANDMARK_INDICES.LEFT_ANKLE];
 
-  if (leftHip && leftKnee && leftAnkle) {
+  if (isVisible(leftHip) && isVisible(leftKnee) && isVisible(leftAnkle)) {
     const kneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
 
     if (kneeAngle > 140 && kneeAngle < 160) {
@@ -252,7 +265,7 @@ export const analyzePosture = (landmarks, exercise) => {
   const rightElbow = landmarks[LANDMARK_INDICES.RIGHT_ELBOW];
   const rightWrist = landmarks[LANDMARK_INDICES.RIGHT_WRIST];
 
-  if (rightShoulder && rightElbow && rightWrist) {
+  if (isVisible(rightShoulder) && isVisible(rightElbow) && isVisible(rightWrist)) {
     const rightArmAngle = calculateAngle(rightShoulder, rightElbow, rightWrist);
 
     if (
@@ -266,7 +279,7 @@ export const analyzePosture = (landmarks, exercise) => {
           message: 'Right arm well extended!',
         });
       } else {
-        penalty = calculatePenalty(rightArmAngle, 160, 100, 15);
+        penalty = calculatePenalty(rightArmAngle, 160, 140, 15);
         metrics.rightArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -282,7 +295,7 @@ export const analyzePosture = (landmarks, exercise) => {
           message: 'Right arm in the correct position!',
         });
       } else {
-        penalty = calculatePenalty(rightArmAngle, 120, 160, 15);
+        penalty = calculatePenalty(rightArmAngle, 120, 140, 15);
         metrics.rightArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -302,7 +315,7 @@ export const analyzePosture = (landmarks, exercise) => {
     totalScore -= 15;
   }
 
-  if (leftShoulder && leftElbow && leftWrist) {
+  if (isVisible(leftShoulder) && isVisible(leftElbow) && isVisible(leftWrist)) {
     const leftArmAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
 
     if (
@@ -316,7 +329,7 @@ export const analyzePosture = (landmarks, exercise) => {
           message: 'Left arm well extended!',
         });
       } else {
-        penalty = calculatePenalty(leftArmAngle, 160, 100, 15);
+        penalty = calculatePenalty(leftArmAngle, 160, 140, 15);
         metrics.leftArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -332,7 +345,7 @@ export const analyzePosture = (landmarks, exercise) => {
           message: 'Left arm in the correct position!',
         });
       } else {
-        penalty = calculatePenalty(leftArmAngle, 120, 160, 15);
+        penalty = calculatePenalty(leftArmAngle, 120, 140, 15);
         metrics.leftArmExtension = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -353,7 +366,7 @@ export const analyzePosture = (landmarks, exercise) => {
   }
 
   // 6. Check arm height
-  if (rightShoulder && rightElbow && rightHip) {
+  if (isVisible(rightShoulder) && isVisible(rightElbow) && isVisible(rightHip)) {
     const rightArmHeightAngle = calculateAngle(rightElbow, rightShoulder, rightHip);
 
     if (exercise.name == 'First Position' || exercise.name == 'Fourth Position') {
@@ -433,7 +446,7 @@ export const analyzePosture = (landmarks, exercise) => {
     totalScore -= 15;
   }
 
-  if (leftShoulder && leftElbow && leftHip) {
+  if (isVisible(leftShoulder) && isVisible(leftElbow) && isVisible(leftHip)) {
     const leftArmHeightAngle = calculateAngle(leftElbow, leftShoulder, leftHip);
 
     if (exercise.name == 'First Position' || exercise.name == 'Third Position') {

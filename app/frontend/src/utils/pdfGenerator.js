@@ -22,6 +22,16 @@ const bufferToBase64 = (buffer) => {
 
 // Tenta carregar a fonte Inter (Regular/Bold) de /fonts (pasta public). Se não achar, usa Helvetica.
 const ensureInterFont = async (doc) => {
+  // On native (Capacitor) builds the app serves assets differently and
+  // attempting to fetch /fonts/... from the WebView can produce noisy
+  // "Unable to open asset URL" logs if the files are not present in
+  // the native assets bundle. In that case we skip fetching and let
+  // the generator fall back to the built-in Helvetica font.
+  if (Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()) {
+    __pdfFontLoaded = false;
+    return;
+  }
+
   if (__pdfFontLoaded) return;
   try {
     const [regRes, boldRes] = await Promise.all([

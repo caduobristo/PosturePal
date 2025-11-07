@@ -15,13 +15,7 @@ function Log {
     Write-Host "[backend] $Message"
 }
 
-$requiredCommands = @('docker')
-foreach ($cmd in $requiredCommands) {
-    if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
-        Write-Error "Error: '$cmd' is required but was not found in PATH."
-        exit 1
-    }
-}
+$requiredCommands = @()
 
 $pythonCommandInfo = $null
 foreach ($candidate in @('python3', 'python')) {
@@ -39,34 +33,7 @@ if (-not $pythonCommandInfo) {
 
 $pythonCommand = $pythonCommandInfo.Path
 
-$mongoContainer = 'posturepal-mongo'
-$runningContainers = @(& docker ps --format '{{.Names}}')
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to list running Docker containers."
-}
-
-if ($runningContainers -contains $mongoContainer) {
-    Log "Mongo container already running."
-} else {
-    $allContainers = @(& docker ps -a --format '{{.Names}}')
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to list existing Docker containers."
-    }
-
-    if ($allContainers -contains $mongoContainer) {
-        Log "Starting existing Mongo container ($mongoContainer)..."
-        & docker start $mongoContainer | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to start Mongo container '$mongoContainer'."
-        }
-    } else {
-        Log "Creating Mongo container ($mongoContainer)..."
-        & docker run -d --name $mongoContainer -p 27017:27017 mongo:7 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create Mongo container '$mongoContainer'."
-        }
-    }
-}
+Log "Note: Docker/Mongo management removed. If you need the backend with Mongo, run it separately and set MONGO_URL in app/backend/.env"
 
 $venvPath = Join-Path $projectRoot '.venv'
 if (-not (Test-Path -LiteralPath $venvPath)) {

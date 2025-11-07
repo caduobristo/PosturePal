@@ -15,7 +15,7 @@ function Log {
     Write-Host "[dev] $Message"
 }
 
-$requiredCommands = @('docker', 'npm', 'npx')
+$requiredCommands = @('npm', 'npx')
 foreach ($cmd in $requiredCommands) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
         Write-Error "Error: '$cmd' is required but was not found in PATH."
@@ -39,34 +39,7 @@ if (-not $pythonCommandInfo) {
 
 $pythonCommand = $pythonCommandInfo.Path
 
-$mongoContainer = 'posturepal-mongo'
-$runningContainers = @(& docker ps --format '{{.Names}}')
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to list running Docker containers."
-}
-
-if ($runningContainers -contains $mongoContainer) {
-    Log "Mongo container already running."
-} else {
-    $allContainers = @(& docker ps -a --format '{{.Names}}')
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to list existing Docker containers."
-    }
-
-    if ($allContainers -contains $mongoContainer) {
-        Log "Starting existing Mongo container ($mongoContainer)..."
-        & docker start $mongoContainer | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to start Mongo container '$mongoContainer'."
-        }
-    } else {
-        Log "Creating Mongo container ($mongoContainer)..."
-        & docker run -d --name $mongoContainer -p 27017:27017 mongo:7 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create Mongo container '$mongoContainer'."
-        }
-    }
-}
+Log "Note: Docker/Mongo steps removed. This script now focuses on frontend setup and start."
 
 $venvPath = Join-Path $projectRoot '.venv'
 if (-not (Test-Path -LiteralPath $venvPath)) {
@@ -96,14 +69,6 @@ if (-not (Test-Path -LiteralPath $pipPath)) {
     throw "Could not locate pip inside the virtual environment."
 }
 
-$requirementsPath = Join-Path $projectRoot 'app\backend\requirements.txt'
-Log "Installing backend dependencies..."
-& $pipPath install -r $requirementsPath *> $null
-$pipExitCode = $LASTEXITCODE
-if ($pipExitCode -ne 0) {
-    throw "Failed to install backend dependencies."
-}
-
 Log "Installing frontend dependencies..."
 Push-Location -LiteralPath (Join-Path $projectRoot 'app\frontend')
 try {
@@ -115,39 +80,10 @@ try {
     Pop-Location
 }
 
-if (-not $env:REACT_APP_API_URL -or [string]::IsNullOrWhiteSpace($env:REACT_APP_API_URL)) {
-    $env:REACT_APP_API_URL = 'http://localhost:8000/api'
+Log "Starting frontend only (backend and Mongo are not started by this script)."
+Push-Location -LiteralPath (Join-Path $projectRoot 'app\frontend')
+try {
+    & npm start
+} finally {
+    Pop-Location
 }
-
-$backendDir = Join-Path $projectRoot 'app\backend'
-$frontendDir = Join-Path $projectRoot 'app\frontend'
-$backendScript = Join-Path $PSScriptRoot 'start-backend.ps1'
-$frontendScript = Join-Path $PSScriptRoot 'start-frontend.ps1'
-
-$backendCommand = [string]::Format(
-    'powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -PythonExecutable "{1}" -BackendDir "{2}"',
-    $backendScript,
-    $pythonInVenv,
-    $backendDir
-)
-
-$frontendCommand = [string]::Format(
-    'powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -FrontendDir "{1}"',
-    $frontendScript,
-    $frontendDir
-)
-
-Log "Starting backend and frontend..."
-$concurrentlyArgs = @(
-    '--yes',
-    'concurrently',
-    '--kill-others',
-    '--names', 'backend,frontend',
-    '--prefix-colors', 'red,blue',
-    $backendCommand,
-    $frontendCommand
-)
-
-& npx @concurrentlyArgs
-$exitCode = $LASTEXITCODE
-exit $exitCode

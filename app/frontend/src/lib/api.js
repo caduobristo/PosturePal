@@ -1,92 +1,18 @@
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL?.replace(/\/$/, '') || 'http://localhost:8000/api';
+// Local DB-backed API shim. Replaces network calls with local SQLite/IndexedDB/localStorage
+import sqliteDB from './sqliteDB';
 
-export class ApiError extends Error {
-  constructor(message, status, data) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.data = data;
-  }
-}
+// initialize DB on import
+sqliteDB.initDB();
 
-const parseBody = async (response) => {
-  const contentType = response.headers.get('content-type') || '';
+export const login = (email, password) => sqliteDB.login(email, password);
 
-  if (contentType.includes('application/json')) {
-    return response.json();
-  }
+export const registerUser = (payload) => sqliteDB.registerUser(payload);
 
-  const text = await response.text();
-  return text || null;
-};
+export const fetchUser = (userId) => sqliteDB.fetchUser(userId);
 
-const buildUrl = (path) => {
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
-  }
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL}${normalizedPath}`;
-};
-
-async function request(path, options = {}) {
-  const response = await fetch(buildUrl(path), {
-    headers: {
-      Accept: 'application/json',
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-
-  const data = await parseBody(response);
-
-  if (!response.ok) {
-    const message =
-      (data && (data.detail || data.message)) ||
-      response.statusText ||
-      'Request failed';
-    throw new ApiError(message, response.status, data);
-  }
-
-  return data;
-}
-
-export const login = (email, password) => {
-  const body = new URLSearchParams({
-    username: email,
-    password,
-  });
-
-  return request('/auth/login', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-};
-
-export const registerUser = (payload) =>
-  request('/users', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-export const fetchUser = (userId) => request(`/users/${userId}`);
-
-export const createSession = (payload) =>
-  request('/sessions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+export const createSession = (payload) => sqliteDB.createSession(payload);
 
 export const fetchSessionsForUser = (userId) =>
-  request(`/users/${userId}/sessions`);
+  sqliteDB.listSessionsForUser(userId);
 
-export const fetchSession = (sessionId) => request(`/sessions/${sessionId}`);
+export const fetchSession = (sessionId) => sqliteDB.fetchSession(sessionId);
