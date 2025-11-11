@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { BluetoothSerial } from '@awesome-cordova-plugins/bluetooth-serial';
+import { AndroidPermissions } from '@awesome-cordova-plugins/android-permissions';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -41,36 +44,217 @@ const CameraEvaluation = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [scoreFeedback, setScoreFeedback] = useState(null);
   const [feedbacksHistory, setFeedbacksHistory] = useState([]);
+  const [connected, setConnected] = useState(false);
+  const [bluetoothError, setBluetoothError] = useState(null);
   const scoreHistoryRef = useRef([]);
   const landmarksHistoryRef = useRef([]);
   const feedbacksHistoryRef = useRef([]);
   const metricsRef = useRef(null);
+  const connectSubscriptionRef = useRef(null);
+  const dataSubscriptionRef = useRef(null);
+  const connectedRef = useRef(false);
+  const stopEvaluationRef = useRef(() => {});
 
   const exercise = useMemo(() => getExerciseById(exerciseId), [exerciseId]);
+  const isNativePlatform = useMemo(() => {
+    const platform = Capacitor.getPlatform();
+    return platform === 'ios' || platform === 'android';
+  }, []);
+  const isBluetoothAvailable = isNativePlatform;
 
   const { videoRef, canvasRef, isReady, landmarks, error, stopCamera } =
     useMediaPipePose();
   const countdownIntervalRef = useRef(null);
-  const analysisTimeoutRef = useRef(null);
 
-  const clearTimers = () => {
+  const clearTimers = useCallback(() => {
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
     }
-    if (analysisTimeoutRef.current) {
-      clearTimeout(analysisTimeoutRef.current);
-      analysisTimeoutRef.current = null;
-    }
-  };
+  }, []);
 
   useEffect(() => {
     return () => {
       clearTimers();
     };
-  }, []);
+  }, [clearTimers]);
 
-  const startEvaluation = () => {
+  const requestBluetoothPermissions = useCallback(async () => {
+    if (!isNativePlatform || Capacitor.getPlatform() !== 'android') {
+      return true;
+    }
+
+    if (
+      typeof AndroidPermissions?.checkPermission !== 'function' ||
+      typeof AndroidPermissions?.requestPermission !== 'function'
+    ) {
+      return true;
+    }
+
+    const requiredPermissions = [
+      'android.permission.BLUETOOTH_CONNECT',
+      'android.permission.BLUETOOTH_SCAN',
+      'android.permission.ACCESS_FINE_LOCATION',
+    ];
+
+    try {
+      for (const permission of requiredPermissions) {
+        const check = await AndroidPermissions.checkPermission(permission);
+        if (!check?.hasPermission) {
+          const result = await AndroidPermissions.requestPermission(permission);
+          if (!result?.hasPermission) {
+            return false;
+          }
+        }
+      }
+      return true;
+    } catch (err) {
+      console.error('Erro ao solicitar permissões Bluetooth:', err);
+      setBluetoothError('Permissões de Bluetooth foram negadas.');
+      return false;
+    }
+  }, [isNativePlatform]);
+
+  const sendBluetoothCommand = useCallback(
+    async (command) => {
+      if (!isBluetoothAvailable) {
+        return;
+      }
+      if (!connectedRef.current) {
+        console.warn('Bluetooth dispositivo não conectado; comando ignorado:', command);
+        return;
+      }
+      if (typeof BluetoothSerial?.write !== 'function') {
+        console.warn('BluetoothSerial.write não disponível');
+        return;
+      }
+
+      try {
+        await BluetoothSerial.write(command);
+      } catch (err) {
+        console.error(`Erro ao enviar comando Bluetooth (${command})`, err);
+        setBluetoothError(err?.message || 'Falha ao enviar comando Bluetooth');
+      }
+    },
+    [isBluetoothAvailable],
+  );
+
+  useEffect(() => {
+    if (!isBluetoothAvailable) {
+      setConnected(false);
+      setBluetoothError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const connectToESP32 = async () => {
+      try {
+        const hasPermissions = await requestBluetoothPermissions();
+        if (!hasPermissions) {
+          setBluetoothError('Permissões de Bluetooth são necessárias para conectar ao ESP32.');
+          setConnected(false);
+          return;
+        }
+
+        if (typeof BluetoothSerial?.enable === 'function') {
+          await BluetoothSerial.enable();
+        }
+
+        const devices = await BluetoothSerial.list();
+        const deviceList = Array.isArray(devices)
+          ? devices
+          : Array.isArray(devices?.devices)
+            ? devices.devices
+            : [];
+
+        const esp =
+          deviceList.find((device) => device?.name === 'PosturePal') ||
+          deviceList.find((device) => device?.name?.includes?.('Carrinho'));
+
+        if (!esp) {
+          console.warn('ESP32 não encontrado');
+          if (!cancelled) {
+            setBluetoothError('ESP32 não encontrado');
+            setConnected(false);
+          }
+          return;
+        }
+
+        const address =
+          esp.address ??
+          esp.id ??
+          esp.uuid ??
+          esp.macAddress ??
+          esp.deviceAddress;
+
+        if (!address) {
+          throw new Error('Endereço Bluetooth do ESP32 não encontrado');
+        }
+
+        connectSubscriptionRef.current = BluetoothSerial.connect(address).subscribe({
+          next: () => {
+            if (cancelled) {
+              return;
+            }
+            connectedRef.current = true;
+            setConnected(true);
+            setBluetoothError(null);
+
+            dataSubscriptionRef.current = BluetoothSerial.subscribe('\n').subscribe({
+              next: (rawValue) => {
+                const normalized = String(rawValue ?? '')
+                  .trim()
+                  .toLowerCase();
+                if (normalized === 'parou') {
+                  console.log('📩 Carrinho enviou PAROU');
+                  stopEvaluationRef.current();
+                }
+              },
+              error: (err) => {
+                console.error('Erro ao receber dados do ESP32:', err);
+              },
+            });
+          },
+          error: (err) => {
+            console.error('Erro ao conectar ao ESP32:', err);
+            if (!cancelled) {
+              setBluetoothError(err?.message || 'Erro ao conectar ao ESP32');
+              setConnected(false);
+              connectedRef.current = false;
+            }
+          },
+        });
+      } catch (err) {
+        console.error('Erro ao conectar ao ESP32:', err);
+        if (!cancelled) {
+          setBluetoothError(err?.message || 'Erro ao conectar ao ESP32');
+          setConnected(false);
+          connectedRef.current = false;
+        }
+      }
+    };
+
+    connectToESP32();
+
+    return () => {
+      cancelled = true;
+
+      dataSubscriptionRef.current?.unsubscribe?.();
+      dataSubscriptionRef.current = null;
+
+      connectSubscriptionRef.current?.unsubscribe?.();
+      connectSubscriptionRef.current = null;
+
+      if (connectedRef.current && typeof BluetoothSerial?.disconnect === 'function') {
+        BluetoothSerial.disconnect().catch(() => null);
+      }
+
+      connectedRef.current = false;
+    };
+  }, [isBluetoothAvailable, requestBluetoothPermissions]);
+
+  const startEvaluation = async () => {
     if (savingSession) return;
     if (!isReady) {
       alert('Camera is not ready. Wait a minute.');
@@ -86,13 +270,12 @@ const CameraEvaluation = () => {
     setLandmarksHistory([]);
     setFeedbacksHistory([]);
     setCountdown(3);
-    setSession((prev) => ({ ...prev, isActive: true }));
+    setSession(prev => ({ ...prev, isActive: true }));
     setIsAnalyzing(false);
 
     let timeLeft = 3;
     countdownIntervalRef.current = setInterval(() => {
       timeLeft -= 1;
-
       if (timeLeft > 0) {
         setCountdown(timeLeft);
         return;
@@ -101,45 +284,62 @@ const CameraEvaluation = () => {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
       setCountdown(null);
-      setIsAnalyzing(true);
 
-      analysisTimeoutRef.current = setTimeout(() => {
-        stopEvaluation();
-      }, 5000);
+      if (isBluetoothAvailable && connectedRef.current) {
+        sendBluetoothCommand('frente\n');
+        console.log('➡️ Comando FRENTE enviado ao carrinho');
+      } else if (isBluetoothAvailable && !connectedRef.current) {
+        setBluetoothError('Carrinho não conectado via Bluetooth.');
+      }
+
+      setIsAnalyzing(true);
+      // Agora não usamos timeout fixo de 5s — aguardamos retorno “parou”
     }, 1000);
   };
 
-  const buildLandmarkPayload = (frames) =>
-    frames.map((frame) =>
-      frame.map((point) => ({
-        x: point.x ?? 0,
-        y: point.y ?? 0,
-        z: point.z ?? 0,
-        visibility:
-          typeof point.visibility === 'number' ? point.visibility : 1,
-      })),
-    );
+  const buildLandmarkPayload = useCallback(
+    (frames) =>
+      frames.map((frame) =>
+        frame.map((point) => ({
+          x: point.x ?? 0,
+          y: point.y ?? 0,
+          z: point.z ?? 0,
+          visibility:
+            typeof point.visibility === 'number' ? point.visibility : 1,
+        })),
+      ),
+    [],
+  );
 
-  const transformMetrics = (metrics) => ({
-    shoulder_alignment:
-      metrics?.shoulder_alignment ?? metrics?.shoulderAlignment ?? 0,
-    hip_alignment: metrics?.hip_alignment ?? metrics?.hipAlignment ?? 0,
-    spine_alignment: metrics?.spine_alignment ?? metrics?.spineAlignment ?? 0,
-    knee_angle: metrics?.knee_angle ?? metrics?.kneeAngle ?? 0,
-    left_arm_extension:
-      metrics?.left_arm_extension ?? metrics?.leftArmExtension ?? 0,
-    right_arm_extension:
-      metrics?.right_arm_extension ?? metrics?.rightArmExtension ?? 0,
-    left_arm_height:
-      metrics?.left_arm_height ?? metrics?.leftArmHeight ?? 0,
-    right_arm_height:
-      metrics?.right_arm_height ?? metrics?.rightArmHeight ?? 0,
-  });
+  const transformMetrics = useCallback(
+    (metrics) => ({
+      shoulder_alignment:
+        metrics?.shoulder_alignment ?? metrics?.shoulderAlignment ?? 0,
+      hip_alignment: metrics?.hip_alignment ?? metrics?.hipAlignment ?? 0,
+      spine_alignment: metrics?.spine_alignment ?? metrics?.spineAlignment ?? 0,
+      knee_angle: metrics?.knee_angle ?? metrics?.kneeAngle ?? 0,
+      left_arm_extension:
+        metrics?.left_arm_extension ?? metrics?.leftArmExtension ?? 0,
+      right_arm_extension:
+        metrics?.right_arm_extension ?? metrics?.rightArmExtension ?? 0,
+      left_arm_height:
+        metrics?.left_arm_height ?? metrics?.leftArmHeight ?? 0,
+      right_arm_height:
+        metrics?.right_arm_height ?? metrics?.rightArmHeight ?? 0,
+    }),
+    [],
+  );
 
-  const stopEvaluation = async () => {
+  const stopEvaluation = useCallback(async () => {
     if (savingSession) return;
     clearTimers();
     setCountdown(null);
+
+    if (isBluetoothAvailable && connectedRef.current) {
+      await sendBluetoothCommand('off\n');
+      console.log('⛔ Comando OFF enviado ao carrinho');
+    }
+
     const finalScoreHistory = scoreHistoryRef.current;
     const finalLandmarksHistory = landmarksHistoryRef.current;
     const finalFeedbacksHistory = feedbacksHistoryRef.current;
@@ -219,7 +419,24 @@ const CameraEvaluation = () => {
     } finally {
       setSavingSession(false);
     }
-  };
+  }, [
+    savingSession,
+    clearTimers,
+    sendBluetoothCommand,
+    setCountdown,
+    exercise,
+    toast,
+    navigate,
+    user,
+    score,
+    buildLandmarkPayload,
+    transformMetrics,
+    stopCamera,
+  ]);
+
+  useEffect(() => {
+    stopEvaluationRef.current = stopEvaluation;
+  }, [stopEvaluation]);
   useEffect(() => {
     if (!isAnalyzing || !landmarks?.length || !exercise) return;
 
@@ -288,8 +505,26 @@ const CameraEvaluation = () => {
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-slate-800 mb-2">{exercise.name}</h1>
           <p className="text-slate-600 text-sm mb-4">{exercise.description}</p>
-        </div>
       </div>
+    </div>
+
+      {isBluetoothAvailable && (
+        <div className="px-6 mb-4">
+          <div className="rounded-lg border border-purple-100 bg-white/70 px-4 py-3 shadow-sm backdrop-blur">
+            <p className="text-sm font-medium text-slate-700">
+              Bluetooth:&nbsp;
+              {connected ? (
+                <span className="text-emerald-600">conectado ao PosturePal…</span>
+              ) : (
+                <span className="text-amber-600">conectando ao PosturePal…</span>
+              )}
+            </p>
+            {bluetoothError && (
+              <p className="mt-2 text-xs text-red-600">{bluetoothError}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Camera View with MediaPipe */}
       <div className="px-6 mb-6">
