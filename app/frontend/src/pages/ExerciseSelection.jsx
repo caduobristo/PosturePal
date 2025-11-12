@@ -86,13 +86,12 @@ const ExerciseSelection = () => {
           <Card key={exercise.id} className="border-0 shadow-lg bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-200">
             <CardContent className="p-0">
               <Link to={`/camera/${exercise.id}`}>
-                <div className="flex items-center p-4 hover:bg-gradient-to-r hover:from-rose-50/50 hover:to-purple-50/50 transition-all duration-200">
-                  {/* Exercise Image */}
-                  <div className="w-16 h-16 bg-gradient-to-br from-rose-100 to-purple-100 rounded-xl mr-4 flex items-center justify-center overflow-hidden">
+                <div className="flex items-center p-4 hover:bg-gradient-to-r hover:from-rose-50/50 hover:to-purple-50/50 transition-all duration-200">                  {/* Exercise Image */}
+                  <div className="w-16 h-16 bg-gradient-to-br from-rose-100 to-purple-100 rounded-xl mr-4 flex items-center justify-center overflow-hidden p-1">
                     <img 
                       src={exercise.image} 
                       alt={exercise.name}
-                      className="w-full h-full object-cover rounded-xl"
+                      className="w-full h-full object-contain"
                       onError={(e) => {
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';
