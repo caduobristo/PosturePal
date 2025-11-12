@@ -16,3 +16,5 @@ export const fetchSessionsForUser = (userId) =>
   sqliteDB.listSessionsForUser(userId);
 
 export const fetchSession = (sessionId) => sqliteDB.fetchSession(sessionId);
+
+export const deleteSession = (sessionId) => sqliteDB.deleteSession(sessionId);

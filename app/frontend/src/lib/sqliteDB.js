@@ -187,6 +187,19 @@ async function fetchSession(sessionId) {
   return s || null;
 }
 
+async function deleteSession(sessionId) {
+  const sessions = LocalStore.getSessions();
+  const index = sessions.findIndex(s => s.id === sessionId);
+  if (index === -1) {
+    const err = new Error('Session not found');
+    err.status = 404;
+    throw err;
+  }
+  sessions.splice(index, 1);
+  LocalStore.saveSessions(sessions);
+  return { success: true, id: sessionId };
+}
+
 export default {
   initDB,
   registerUser,
@@ -195,4 +208,5 @@ export default {
   createSession,
   listSessionsForUser,
   fetchSession,
+  deleteSession,
 };

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -14,14 +14,46 @@ import {
   Sparkles,
   ChevronRight,
   BarChart3,
-  Download
+  Download,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import useUserSessions from '../hooks/useUserSessions';
+import { deleteSession } from '../lib/api';
+import { useToast } from '../hooks/use-toast';
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { sessions, loading: loadingSessions } = useUserSessions(user?.id);
+  const { sessions, loading: loadingSessions, refresh } = useUserSessions(user?.id);
+  const { toast } = useToast();
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleDeleteSession = async (sessionId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!window.confirm('Tem certeza que deseja deletar esta sessão?')) {
+      return;
+    }
+
+    setDeletingId(sessionId);
+    try {
+      await deleteSession(sessionId);
+      toast({
+        title: 'Sessão deletada',
+        description: 'A sessão foi removida com sucesso.',
+      });
+      refresh();
+    } catch (error) {
+      toast({
+        title: 'Erro ao deletar',
+        description: error?.message || 'Não foi possível deletar a sessão.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const stats = useMemo(() => {
     if (!sessions?.length) {
@@ -142,40 +174,48 @@ const Dashboard = () => {
               <div className="text-sm text-slate-500">
                 No sessions recorded yet. Start practicing to see your progress here!
               </div>
-            )}
-            {stats.recentSessions.map((session) => (
-              <Link key={session.id} to={`/result/${session.id}`}>
-                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-purple-200 hover:bg-purple-50/50 transition-all duration-200">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-rose-100 to-purple-100 rounded-lg flex items-center justify-center">
-                      <Target className="w-5 h-5 text-purple-600" />
+            )}            {stats.recentSessions.map((session) => (
+              <div key={session.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-purple-200 hover:bg-purple-50/50 transition-all duration-200">
+                <Link to={`/result/${session.id}`} className="flex items-center space-x-3 flex-1">
+                  <div className="w-10 h-10 bg-gradient-to-br from-rose-100 to-purple-100 rounded-lg flex items-center justify-center">
+                    <Target className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-800 text-sm">
+                      {session.exercise_name || session.exercise}
                     </div>
-                    <div>
-                      <div className="font-semibold text-slate-800 text-sm">
-                        {session.exercise_name || session.exercise}
-                      </div>
-                      <div className="text-xs text-slate-500 flex items-center">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {new Date(session.created_at || session.date).toLocaleString()}
-                      </div>
+                    <div className="text-xs text-slate-500 flex items-center">
+                      <Clock className="w-3 h-3 mr-1" />
+                      {new Date(session.created_at || session.date).toLocaleString()}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge 
-                      className={`text-xs ${
-                        session.score >= 90 
-                          ? 'bg-emerald-100 text-emerald-700' 
-                          : session.score >= 80 
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}
-                    >
-                      {session.score}
-                    </Badge>
+                </Link>
+                <div className="flex items-center space-x-2">
+                  <Badge 
+                    className={`text-xs ${
+                      session.score >= 90 
+                        ? 'bg-emerald-100 text-emerald-700' 
+                        : session.score >= 80 
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {session.score}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => handleDeleteSession(session.id, e)}
+                    disabled={deletingId === session.id}
+                    className="p-1 h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                  <Link to={`/result/${session.id}`}>
                     <ChevronRight className="w-4 h-4 text-slate-400" />
-                  </div>
+                  </Link>
                 </div>
-              </Link>
+              </div>
             ))}
           </CardContent>
         </Card>

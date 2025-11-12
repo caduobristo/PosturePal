@@ -13,14 +13,15 @@ import {
   CheckCircle,
   AlertCircle,
   Star,
-  Trophy
+  Trophy,
+  Trash2
 } from 'lucide-react';
 import { getTopFeedbacks } from '../utils/getTopFeedbacks';
 import Landmark3DViewer from '../utils/3dmodel';
 import { analyzePosture } from '../utils/postureAnalysis';
 import { generatePDFReport } from '../utils/pdfGenerator';
 import { useToast } from '../hooks/use-toast';
-import { fetchSession } from '../lib/api';
+import { fetchSession, deleteSession } from '../lib/api';
 
 const SessionResult = () => {
   const { sessionId } = useParams();
@@ -166,7 +167,6 @@ const SessionResult = () => {
     if (score >= 50) return { text: 'You Can Improve! 🧐', class: 'bg-orange-100 text-orange-700' };
     return { text: 'Keep Practicing! 🌟', class: 'bg-rose-100 text-rose-700' };
   };
-
   const badge = getScoreBadge(Number(average));
 
   const handleDownloadPDF = async () => {
@@ -189,6 +189,29 @@ const SessionResult = () => {
       toast({
         title: 'Failed to generate PDF',
         description: error?.message || 'Try again in a moment.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!sessionId) return;
+    
+    if (!window.confirm('Tem certeza que deseja deletar esta sessão?')) {
+      return;
+    }
+
+    try {
+      await deleteSession(sessionId);
+      toast({
+        title: 'Sessão deletada',
+        description: 'A sessão foi removida com sucesso.',
+      });
+      navigate('/');
+    } catch (error) {
+      toast({
+        title: 'Erro ao deletar',
+        description: error?.message || 'Não foi possível deletar a sessão.',
         variant: 'destructive',
       });
     }
@@ -354,6 +377,17 @@ const SessionResult = () => {
           <Download className="w-4 h-4 mr-2" />
           Export Detailed Report
         </Button>
+        
+        {sessionId && (
+          <Button 
+            variant="outline" 
+            className="w-full h-12 border-red-200 text-red-600 hover:bg-red-50"
+            onClick={handleDeleteSession}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete Session
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -61,8 +61,7 @@ const CameraEvaluation = () => {
     return platform === 'ios' || platform === 'android';
   }, []);
   const isBluetoothAvailable = isNativePlatform;
-
-  const { videoRef, canvasRef, isReady, landmarks, error, stopCamera } =
+  const { videoRef, canvasRef, isReady, landmarks, error, stopCamera, restartCamera, isInitializing } =
     useMediaPipePose();
   const countdownIntervalRef = useRef(null);
 
@@ -540,15 +539,21 @@ const CameraEvaluation = () => {
                 width={640}
                 height={480}
                 className="absolute inset-0 w-full h-full object-cover"
-              />
-
-              {/* Camera error */}
+              />              {/* Camera error */}
               {error && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/70">
                   <div className="text-center text-white p-6">
                     <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
-                    <p className="text-sm mb-2">Error: can't access the camera</p>
-                    <p className="text-xs text-white/70">{error}</p>
+                    <p className="text-sm mb-2 font-semibold">Erro ao acessar a câmera</p>
+                    <p className="text-xs text-white/70 mb-4">{error}</p>
+                    <Button
+                      onClick={restartCamera}
+                      disabled={isInitializing}
+                      className="bg-white/20 hover:bg-white/30 text-white border border-white/30"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      {isInitializing ? 'Tentando...' : 'Tentar Novamente'}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -559,13 +564,11 @@ const CameraEvaluation = () => {
                 <div className="absolute top-0 right-0 w-6 h-6 border-r-2 border-t-2 border-white/50"></div>
                 <div className="absolute bottom-0 left-0 w-6 h-6 border-l-2 border-b-2 border-white/50"></div>
                 <div className="absolute bottom-0 right-0 w-6 h-6 border-r-2 border-b-2 border-white/50"></div>
-              </div>
-
-              {/*              Status overlay */}
+              </div>              {/*              Status overlay */}
               <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
                 {!isReady && !error && (
                   <Badge className="bg-yellow-500/90 text-white">
-                    Initing the camera...
+                    {isInitializing ? 'Iniciando câmera...' : 'Carregando...'}
                   </Badge>
                 )}
                 {isAnalyzing && (
@@ -573,16 +576,14 @@ const CameraEvaluation = () => {
                     ● LIVE
                   </Badge>
                 )}
-              </div>
-
-              {/* Countdown /              Status overlay center */}
+              </div>              {/* Countdown /              Status overlay center */}
               {!session.isActive && isReady && !error && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                   <div className="text-center text-white">
                     <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Camera className="w-8 h-8 text-white" />
                     </div>
-                    <p className="text-white/80">Stand inside the frame</p>
+                    <p className="text-white/80">Posicione-se dentro do quadro</p>
                   </div>
                 </div>
               )}
