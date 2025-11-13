@@ -35,11 +35,15 @@ const SessionResult = () => {
     scoreHistory: navScoreHistory,
     landmarksHistory: navLandmarksHistory,
     feedbacksHistory: navFeedbacksHistory,
+    videoFrames: navVideoFrames,
   } = navigationState;
 
   const [sessionRecord, setSessionRecord] = useState(navigationState.session || null);
   const [loadingSession, setLoadingSession] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [isPlayingVideo, setIsPlayingVideo] = useState(false);
+  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const videoIntervalRef = React.useRef(null);
 
   useEffect(() => {
     if ((navExercise && navScoreHistory) || !sessionId) {
@@ -84,6 +88,86 @@ const SessionResult = () => {
   const resolvedFeedbacksHistory =
     navFeedbacksHistory ||
     (Array.isArray(sessionRecord?.feedback) ? sessionRecord.feedback : []);
+
+  const resolvedVideoFrames =
+    navVideoFrames ||
+    (Array.isArray(sessionRecord?.video_frames) ? sessionRecord.video_frames : []);
+
+  const hasVideoReplay = resolvedVideoFrames.length > 0;
+
+  // Delete session handler
+  const handleDeleteSession = async () => {
+    if (!sessionId) {
+      toast({
+        title: 'Error',
+        description: 'Session ID not found.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this session? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteSession(sessionId);
+      toast({
+        title: 'Session deleted',
+        description: 'The session was successfully removed.',
+      });
+      navigate('/dashboard');
+    } catch (error) {
+      toast({
+        title: 'Error deleting session',
+        description: error?.message || 'Failed to delete the session.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Video replay controls
+  const playVideo = () => {
+    if (!hasVideoReplay) return;
+    
+    setIsPlayingVideo(true);
+    setCurrentFrameIndex(0);
+    
+    let frameIdx = 0;
+    videoIntervalRef.current = setInterval(() => {
+      frameIdx++;
+      if (frameIdx >= resolvedVideoFrames.length) {
+        stopVideo();
+      } else {
+        setCurrentFrameIndex(frameIdx);
+      }
+    }, 200); // 5 FPS (same as capture rate)
+  };
+
+  const stopVideo = () => {
+    if (videoIntervalRef.current) {
+      clearInterval(videoIntervalRef.current);
+      videoIntervalRef.current = null;
+    }
+    setIsPlayingVideo(false);
+    setCurrentFrameIndex(0);
+  };
+
+  const pauseVideo = () => {
+    if (videoIntervalRef.current) {
+      clearInterval(videoIntervalRef.current);
+      videoIntervalRef.current = null;
+    }
+    setIsPlayingVideo(false);
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
+      }
+    };
+  }, []);
 
   const latestLandmarks =
     Array.isArray(resolvedLandmarksHistory) && resolvedLandmarksHistory.length > 0
@@ -220,8 +304,7 @@ const SessionResult = () => {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-rose-50 via-white to-purple-50">
       {/* Header */}
-      <div className="px-6 pt-8 pb-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="px-6 pt-8 pb-6">        <div className="flex items-center justify-between mb-6">
           <Button 
             variant="ghost" 
             size="sm" 
@@ -241,6 +324,14 @@ const SessionResult = () => {
             >
               <Download className="w-4 h-4" />
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-red-200 text-red-600 hover:bg-red-50"
+              onClick={handleDeleteSession}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
@@ -249,6 +340,94 @@ const SessionResult = () => {
           <p className="text-slate-600 text-sm">{resolvedExercise.name} Analysis</p>
         </div>
       </div>
+
+      {/* Video Replay Section */}
+      {hasVideoReplay && (
+        <div className="px-6 mb-6">
+          <Card className="border-0 shadow-xl bg-white/70 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center text-slate-800">
+                <RotateCcw className="w-5 h-5 mr-2" />
+                Session Replay
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative aspect-[3/4] bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg overflow-hidden">
+                {resolvedVideoFrames[currentFrameIndex] ? (
+                  <img 
+                    src={resolvedVideoFrames[currentFrameIndex]} 
+                    alt={`Frame ${currentFrameIndex + 1}`}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center text-white">
+                      <RotateCcw className="w-12 h-12 mx-auto mb-4 text-white/50" />
+                      <p className="text-white/70">Click play to watch your session</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Playback overlay */}
+                {!isPlayingVideo && currentFrameIndex === 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <Button
+                      onClick={playVideo}
+                      className="bg-white/90 hover:bg-white text-slate-800 rounded-full w-16 h-16 flex items-center justify-center"
+                    >
+                      <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </Button>
+                  </div>
+                )}
+
+                {/* Frame counter */}
+                <div className="absolute bottom-4 right-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full">
+                  {currentFrameIndex + 1} / {resolvedVideoFrames.length}
+                </div>
+              </div>
+
+              {/* Playback controls */}
+              <div className="mt-4 flex items-center justify-center space-x-3">
+                {!isPlayingVideo ? (
+                  <Button
+                    onClick={playVideo}
+                    size="sm"
+                    className="bg-gradient-to-r from-rose-500 to-purple-600"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Play
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={pauseVideo}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                    </svg>
+                    Pause
+                  </Button>
+                )}
+                <Button
+                  onClick={stopVideo}
+                  size="sm"
+                  variant="outline"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" />
+                  </svg>
+                  Stop
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Score Display */}
       <div className="px-6 mb-6">

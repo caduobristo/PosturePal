@@ -40,7 +40,6 @@ const CameraEvaluation = () => {
   const [score, setScore] = useState(0);
   const [scoreHistory, setScoreHistory] = useState([]);
   const [landmarksHistory, setLandmarksHistory] = useState([]);
-
   const [feedbacks, setFeedbacks] = useState([]);
   const [scoreFeedback, setScoreFeedback] = useState(null);
   const [feedbacksHistory, setFeedbacksHistory] = useState([]);
@@ -49,11 +48,13 @@ const CameraEvaluation = () => {
   const scoreHistoryRef = useRef([]);
   const landmarksHistoryRef = useRef([]);
   const feedbacksHistoryRef = useRef([]);
+  const videoFramesRef = useRef([]);
   const metricsRef = useRef(null);
   const connectSubscriptionRef = useRef(null);
   const dataSubscriptionRef = useRef(null);
   const connectedRef = useRef(false);
   const stopEvaluationRef = useRef(() => {});
+  const frameIntervalRef = useRef(null);
 
   const exercise = useMemo(() => getExerciseById(exerciseId), [exerciseId]);
   const isNativePlatform = useMemo(() => {
@@ -252,6 +253,21 @@ const CameraEvaluation = () => {
       connectedRef.current = false;
     };
   }, [isBluetoothAvailable, requestBluetoothPermissions]);
+  const captureVideoFrame = useCallback(() => {
+    if (!videoRef.current) return null;
+    
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.7);
+    } catch (error) {
+      console.error('Error capturing frame:', error);
+      return null;
+    }
+  }, []);
 
   const startEvaluation = async () => {
     if (savingSession) return;
@@ -264,6 +280,7 @@ const CameraEvaluation = () => {
     scoreHistoryRef.current = [];
     landmarksHistoryRef.current = [];
     feedbacksHistoryRef.current = [];
+    videoFramesRef.current = [];
     metricsRef.current = null;
     setScoreHistory([]);
     setLandmarksHistory([]);
@@ -292,7 +309,14 @@ const CameraEvaluation = () => {
       }
 
       setIsAnalyzing(true);
-      // Agora não usamos timeout fixo de 5s — aguardamos retorno “parou”
+      
+      // Capture video frames every 200ms (5 frames per second)
+      frameIntervalRef.current = setInterval(() => {
+        const frame = captureVideoFrame();
+        if (frame && videoFramesRef.current.length < 100) { // Limit to 100 frames (~20 seconds)
+          videoFramesRef.current.push(frame);
+        }
+      }, 200);
     }, 1000);
   };
 
@@ -334,6 +358,12 @@ const CameraEvaluation = () => {
     clearTimers();
     setCountdown(null);
 
+    // Stop capturing frames
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+    }
+
     if (isBluetoothAvailable && connectedRef.current) {
       await sendBluetoothCommand('off\n');
       console.log('⛔ Comando OFF enviado ao carrinho');
@@ -342,6 +372,7 @@ const CameraEvaluation = () => {
     const finalScoreHistory = scoreHistoryRef.current;
     const finalLandmarksHistory = landmarksHistoryRef.current;
     const finalFeedbacksHistory = feedbacksHistoryRef.current;
+    const finalVideoFrames = videoFramesRef.current;
 
     setSession({ ...DEFAULT_CAMERA_SESSION_STATE });
     setIsAnalyzing(false);
@@ -382,6 +413,7 @@ const CameraEvaluation = () => {
       feedback: finalFeedbacksHistory,
       metrics: transformMetrics(metricsRef.current),
       landmark_frames: buildLandmarkPayload(finalLandmarksHistory),
+      video_frames: finalVideoFrames,
     };
 
     try {
@@ -397,6 +429,7 @@ const CameraEvaluation = () => {
           scoreHistory: finalScoreHistory,
           landmarksHistory: finalLandmarksHistory,
           feedbacksHistory: finalFeedbacksHistory,
+          videoFrames: finalVideoFrames,
           session: savedSession,
         },
       });
