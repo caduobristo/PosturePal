@@ -54,6 +54,27 @@ export const calculateSeverity = (penalty, maxPenalty) => {
   return Math.max(0, Math.min(1, normalized));
 };
 
+// Calculate penalty based on distance relative to target range
+// If distance is outside [minDist, maxDist], calculate penalty proportionally
+export const calculateDistancePenalty = (distance, minDist, maxDist, maxPenalty) => {
+  if (distance >= minDist && distance <= maxDist) {
+    return 0;
+  }
+
+  let excess;
+  if (distance < minDist) {
+    excess = minDist - distance;
+  } else {
+    excess = distance - maxDist;
+  }
+
+  const range = maxDist - minDist;
+  let penalty = Math.floor((excess / range) * maxPenalty);
+  penalty = Math.min(penalty, maxPenalty);
+
+  return penalty;
+};
+
 // MediaPipe Pose landmark indices
 export const LANDMARK_INDICES = {
   NOSE: 0,
@@ -120,7 +141,9 @@ export const analyzePosture = (landmarks, exercise) => {
     leftArmExtension: 0,
     rightArmExtension: 0,
     leftArmHeight: 0,
-    rightArmHeight: 0
+    rightArmHeight: 0,
+    handDistance: 0,
+    footDistance: 0
   };
 
   // 1. Check shoulder alignment
@@ -268,42 +291,32 @@ export const analyzePosture = (landmarks, exercise) => {
   if (isVisible(rightShoulder) && isVisible(rightElbow) && isVisible(rightWrist)) {
     const rightArmAngle = calculateAngle(rightShoulder, rightElbow, rightWrist);
 
-    if (
-      exercise.name == 'Second Position' ||
-      exercise.name == 'Fourth Position' ||
-      exercise.name == 'Fifth Position'
-    ) {
-      if (rightArmAngle > 160) {
-        feedback.push({
-          type: 'success',
-          message: 'Right arm well extended!',
-        });
-      } else {
-        penalty = calculatePenalty(rightArmAngle, 160, 140, 15);
-        metrics.rightArmExtension = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Right arm should be extended!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
-      }
+    // Right arm should be around 130 degrees in all positions
+    if (rightArmAngle > 120 && rightArmAngle < 140) {
+      feedback.push({
+        type: 'success',
+        message: 'Right arm in the correct position!',
+      });
+    } else if (rightArmAngle > 140) {
+      // Over-extended
+      penalty = calculatePenalty(rightArmAngle, 140, 150, 15);
+      metrics.rightArmExtension = calculateSeverity(penalty, 15);
+      feedback.push({
+        type: 'error',
+        message: 'Right arm is too extended. Bring it closer to your body.',
+        score: -penalty,
+      });
+      totalScore -= penalty;
     } else {
-      if (rightArmAngle < 120) {
-        feedback.push({
-          type: 'success',
-          message: 'Right arm in the correct position!',
-        });
-      } else {
-        penalty = calculatePenalty(rightArmAngle, 120, 140, 15);
-        metrics.rightArmExtension = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Right arm should not be extended!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
-      }
+      // Under-extended
+      penalty = calculatePenalty(rightArmAngle, 120, 110, 15);
+      metrics.rightArmExtension = calculateSeverity(penalty, 15);
+      feedback.push({
+        type: 'error',
+        message: 'Right arm should be more extended.',
+        score: -penalty,
+      });
+      totalScore -= penalty;
     }
   } else {
     metrics.rightArmExtension = 1;
@@ -318,42 +331,32 @@ export const analyzePosture = (landmarks, exercise) => {
   if (isVisible(leftShoulder) && isVisible(leftElbow) && isVisible(leftWrist)) {
     const leftArmAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
 
-    if (
-      exercise.name == 'Second Position' ||
-      exercise.name == 'Fourth Position' ||
-      exercise.name == 'Fifth Position'
-    ) {
-      if (leftArmAngle > 160) {
-        feedback.push({
-          type: 'success',
-          message: 'Left arm well extended!',
-        });
-      } else {
-        penalty = calculatePenalty(leftArmAngle, 160, 140, 15);
-        metrics.leftArmExtension = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Left arm should be extended!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
-      }
+    // Left arm should be around 130 degrees in all positions
+    if (leftArmAngle > 120 && leftArmAngle < 140) {
+      feedback.push({
+        type: 'success',
+        message: 'Left arm in the correct position!',
+      });
+    } else if (leftArmAngle > 140) {
+      // Over-extended
+      penalty = calculatePenalty(leftArmAngle, 140, 150, 15);
+      metrics.leftArmExtension = calculateSeverity(penalty, 15);
+      feedback.push({
+        type: 'error',
+        message: 'Left arm is too extended. Bring it closer to your body.',
+        score: -penalty,
+      });
+      totalScore -= penalty;
     } else {
-      if (leftArmAngle < 120) {
-        feedback.push({
-          type: 'success',
-          message: 'Left arm in the correct position!',
-        });
-      } else {
-        penalty = calculatePenalty(leftArmAngle, 120, 140, 15);
-        metrics.leftArmExtension = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Left arm should not be extended!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
-      }
+      // Under-extended
+      penalty = calculatePenalty(leftArmAngle, 120, 110, 15);
+      metrics.leftArmExtension = calculateSeverity(penalty, 15);
+      feedback.push({
+        type: 'error',
+        message: 'Left arm should be more extended.',
+        score: -penalty,
+      });
+      totalScore -= penalty;
     }
   } else {
     metrics.leftArmExtension = 1;
@@ -369,14 +372,14 @@ export const analyzePosture = (landmarks, exercise) => {
   if (isVisible(rightShoulder) && isVisible(rightElbow) && isVisible(rightHip)) {
     const rightArmHeightAngle = calculateAngle(rightElbow, rightShoulder, rightHip);
 
-    if (exercise.name == 'First Position' || exercise.name == 'Fourth Position') {
-      if (rightArmHeightAngle > 30 && rightArmHeightAngle < 100) {
+    if (exercise.name != 'Fifth Position') {
+      if (rightArmHeightAngle > 40 && rightArmHeightAngle < 80) {
         feedback.push({
           type: 'success',
           message: 'Right arm well extended!',
         });
-      } else if (rightArmHeightAngle < 30) {
-        penalty = calculatePenalty(rightArmHeightAngle, 30, 10, 15);
+      } else if (rightArmHeightAngle < 40) {
+        penalty = calculatePenalty(rightArmHeightAngle, 40, 20, 15);
         metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -385,48 +388,23 @@ export const analyzePosture = (landmarks, exercise) => {
         });
         totalScore -= penalty;
       } else {
-        penalty = calculatePenalty(rightArmHeightAngle, 100, 120, 15);
+        penalty = calculatePenalty(rightArmHeightAngle, 80, 100, 15);
         metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Right hand should be in front of your navel!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
-      }
-    } else if (exercise.name == 'Fifth Position') {
-      if (rightArmHeightAngle > 130) {
-        feedback.push({
-          type: 'success',
-          message: 'Right arm in the correct position!',
-        });
-      } else {
-        penalty = calculatePenalty(rightArmHeightAngle, 130, 90, 15);
-        metrics.rightArmHeight = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Right arm higher up!',
           score: -penalty,
         });
         totalScore -= penalty;
       }
     } else {
-      if (rightArmHeightAngle > 70 && rightArmHeightAngle < 120) {
+      if (rightArmHeightAngle > 150) {
         feedback.push({
           type: 'success',
           message: 'Right arm in the correct position!',
         });
-      } else if (rightArmHeightAngle < 70) {
-        penalty = calculatePenalty(rightArmHeightAngle, 70, 40, 15);
-        metrics.rightArmHeight = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Right arm should be at shoulder height!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
       } else {
-        penalty = calculatePenalty(rightArmHeightAngle, 120, 160, 15);
+        penalty = calculatePenalty(rightArmHeightAngle, 150, 120, 15);
         metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -449,14 +427,14 @@ export const analyzePosture = (landmarks, exercise) => {
   if (isVisible(leftShoulder) && isVisible(leftElbow) && isVisible(leftHip)) {
     const leftArmHeightAngle = calculateAngle(leftElbow, leftShoulder, leftHip);
 
-    if (exercise.name == 'First Position' || exercise.name == 'Third Position') {
-      if (leftArmHeightAngle > 30 && leftArmHeightAngle < 100) {
+    if (exercise.name != 'Fifth Position' || exercise.name != 'Fourth Position') {
+      if (leftArmHeightAngle > 40 && leftArmHeightAngle < 80) {
         feedback.push({
           type: 'success',
           message: 'Left arm well extended!',
         });
-      } else if (leftArmHeightAngle < 30) {
-        penalty = calculatePenalty(leftArmHeightAngle, 30, 0, 15);
+      } else if (leftArmHeightAngle < 40) {
+        penalty = calculatePenalty(leftArmHeightAngle, 40, 20, 15);
         metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -465,52 +443,27 @@ export const analyzePosture = (landmarks, exercise) => {
         });
         totalScore -= penalty;
       } else {
-        penalty = calculatePenalty(leftArmHeightAngle, 100, 140, 15);
+        penalty = calculatePenalty(leftArmHeightAngle, 80, 100, 15);
         metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
           message: 'Left hand should be in front of your navel!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
-      }
-    } else if (exercise.name == 'Second Position') {
-      if (leftArmHeightAngle > 70 && leftArmHeightAngle < 120) {
-        feedback.push({
-          type: 'success',
-          message: 'Left arm in the correct position!',
-        });
-      } else if (leftArmHeightAngle < 70) {
-        penalty = calculatePenalty(leftArmHeightAngle, 70, 40, 15);
-        metrics.leftArmHeight = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Left arm should be at shoulder height!',
-          score: -penalty,
-        });
-        totalScore -= penalty;
-      } else {
-        penalty = calculatePenalty(leftArmHeightAngle, 120, 160, 15);
-        metrics.leftArmHeight = calculateSeverity(penalty, 15);
-        feedback.push({
-          type: 'error',
-          message: 'Left arm should be at shoulder height!',
           score: -penalty,
         });
         totalScore -= penalty;
       }
     } else {
-      if (leftArmHeightAngle > 130) {
+      if (leftArmHeightAngle > 150) {
         feedback.push({
           type: 'success',
           message: 'Left arm in the correct position!',
         });
       } else {
-        penalty = calculatePenalty(leftArmHeightAngle, 130, 90, 15);
+        penalty = calculatePenalty(leftArmHeightAngle, 150, 120, 15);
         metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
-          message: 'Left arm higher up!',
+          message: 'Left arm should be at shoulder height!',
           score: -penalty,
         });
         totalScore -= penalty;
@@ -524,6 +477,99 @@ export const analyzePosture = (landmarks, exercise) => {
       score: -15,
     });
     totalScore -= 15;
+  }
+
+  // 7. Check hand distance (distance between left and right wrists)
+  if (isVisible(leftWrist) && isVisible(rightWrist)) {
+    const handDistance = calculateDistance(leftWrist, rightWrist);
+
+    // First and Fifth positions: hands should be close
+    // Other positions: hands should be farther apart
+    let minHandDist, maxHandDist;
+    let expectedDistance;
+
+    if (exercise.name === 'First Position' || exercise.name === 'Fifth Position') {
+      minHandDist = 0.05;
+      maxHandDist = 0.25;
+      expectedDistance = 'close';
+    } else {
+      minHandDist = 0.2;
+      maxHandDist = 0.6;
+      expectedDistance = 'far apart';
+    }
+
+    penalty = calculateDistancePenalty(handDistance, minHandDist, maxHandDist, 10);
+    metrics.handDistance = calculateSeverity(penalty, 10);
+
+    if (penalty > 0) {
+      feedback.push({
+        type: 'error',
+        message: `Hands should be ${expectedDistance}. Adjust your arm position.`,
+        score: -penalty,
+      });
+      totalScore -= penalty;
+    } else {
+      feedback.push({
+        type: 'success',
+        message: 'Hand distance is correct!',
+      });
+    }
+  } else {
+    metrics.handDistance = 1;
+    feedback.push({
+      type: 'error',
+      message: 'Hands not visible in the camera.',
+      score: -10,
+    });
+    totalScore -= 10;
+  }
+
+  // 8. Check foot distance (distance between left and right ankles)
+  const leftFootIndex = landmarks[LANDMARK_INDICES.LEFT_FOOT_INDEX];
+  const rightFootIndex = landmarks[LANDMARK_INDICES.RIGHT_FOOT_INDEX];
+
+  if (isVisible(leftFootIndex) && isVisible(rightFootIndex)) {
+    const footDistance = calculateDistance(leftFootIndex, rightFootIndex);
+
+    // Second position: feet should be far apart
+    // Other positions: feet should be close
+    let minFootDist, maxFootDist;
+    let expectedDistance;
+
+    if (exercise.name === 'Second Position') {
+      minFootDist = 0.25;
+      maxFootDist = 0.40;
+      expectedDistance = 'far apart';
+    } else {
+      minFootDist = 0.01;
+      maxFootDist = 0.06;
+      expectedDistance = 'close';
+    }
+
+    penalty = calculateDistancePenalty(footDistance, minFootDist, maxFootDist, 10);
+    metrics.footDistance = calculateSeverity(penalty, 10);
+
+    if (penalty > 0) {
+      feedback.push({
+        type: 'error',
+        message: `Feet should be ${expectedDistance}. Adjust your stance.`,
+        score: -penalty,
+      });
+      totalScore -= penalty;
+    } else {
+      feedback.push({
+        type: 'success',
+        message: 'Foot distance is correct!',
+      });
+    }
+  } else {
+    metrics.footDistance = 1;
+    feedback.push({
+      type: 'error',
+      message: 'Feet not visible in the camera.',
+      score: -10,
+    });
+    totalScore -= 10;
   }
 
   // Ensure final score stays between 0 and 100

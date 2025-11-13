@@ -8,7 +8,7 @@ import releve from './releve.png';
 export const EXERCISES = [
   {
     id: '1',
-    name: 'Bras Bas',
+    name: 'First Position',
     difficulty: 'Beginner',
     description: 'Basic foot position with heels together, toes turned out.',
     image: position1,
@@ -23,7 +23,7 @@ export const EXERCISES = [
   },
   {
     id: '2',
-    name: 'À la seconde',
+    name: 'Second Position',
     difficulty: 'Beginner',
     description: 'One leg extended behind, body in line.',
     image: position2,
@@ -38,7 +38,7 @@ export const EXERCISES = [
   },
   {
     id: '3',
-    name: 'Troisième Position',
+    name: 'Third Position',
     difficulty: 'Beginner',
     description: 'Deep knee bend maintaining turnout.',
     image: position3,
@@ -53,7 +53,7 @@ export const EXERCISES = [
   },
   {
     id: '4',
-    name: 'Quatrième Position',
+    name: 'Forth Position',
     difficulty: 'Beginner',
     description: 'Graceful arm movements and carriage.',
     image: position4,
@@ -68,7 +68,7 @@ export const EXERCISES = [
   },
   {
     id: '5',
-    name: 'Cinquième en Haut',
+    name: 'Fifth Position',
     difficulty: 'Beginner',
     description: 'Sliding foot along floor maintaining contact.',
     image: position5,
@@ -80,20 +80,6 @@ export const EXERCISES = [
     ],
     averageScore: 86,
     completedTimes: 18,
-  },  {
-    id: '6',
-    name: 'Relevé',
-    difficulty: 'Intermediate',
-    description: 'Rising onto balls of feet with control.',
-    image: releve,
-    keyPoints: [
-      'Balanced rise',
-      'Ankle strength',
-      'Core stability',
-      'Proper alignment',
-    ],
-    averageScore: 79,
-    completedTimes: 10,
   },
 ];
 
