@@ -40,7 +40,6 @@ const CameraEvaluation = () => {
   const [score, setScore] = useState(0);
   const [scoreHistory, setScoreHistory] = useState([]);
   const [landmarksHistory, setLandmarksHistory] = useState([]);
-
   const [feedbacks, setFeedbacks] = useState([]);
   const [scoreFeedback, setScoreFeedback] = useState(null);
   const [feedbacksHistory, setFeedbacksHistory] = useState([]);
@@ -49,11 +48,13 @@ const CameraEvaluation = () => {
   const scoreHistoryRef = useRef([]);
   const landmarksHistoryRef = useRef([]);
   const feedbacksHistoryRef = useRef([]);
+  const videoFramesRef = useRef([]);
   const metricsRef = useRef(null);
   const connectSubscriptionRef = useRef(null);
   const dataSubscriptionRef = useRef(null);
   const connectedRef = useRef(false);
   const stopEvaluationRef = useRef(() => {});
+  const frameIntervalRef = useRef(null);
 
   const exercise = useMemo(() => getExerciseById(exerciseId), [exerciseId]);
   const isNativePlatform = useMemo(() => {
@@ -61,8 +62,7 @@ const CameraEvaluation = () => {
     return platform === 'ios' || platform === 'android';
   }, []);
   const isBluetoothAvailable = isNativePlatform;
-
-  const { videoRef, canvasRef, isReady, landmarks, error, stopCamera } =
+  const { videoRef, canvasRef, isReady, landmarks, error, stopCamera, restartCamera, isInitializing } =
     useMediaPipePose();
   const countdownIntervalRef = useRef(null);
 
@@ -253,6 +253,21 @@ const CameraEvaluation = () => {
       connectedRef.current = false;
     };
   }, [isBluetoothAvailable, requestBluetoothPermissions]);
+  const captureVideoFrame = useCallback(() => {
+    if (!videoRef.current) return null;
+    
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.7);
+    } catch (error) {
+      console.error('Error capturing frame:', error);
+      return null;
+    }
+  }, []);
 
   const startEvaluation = async () => {
     if (savingSession) return;
@@ -265,6 +280,7 @@ const CameraEvaluation = () => {
     scoreHistoryRef.current = [];
     landmarksHistoryRef.current = [];
     feedbacksHistoryRef.current = [];
+    videoFramesRef.current = [];
     metricsRef.current = null;
     setScoreHistory([]);
     setLandmarksHistory([]);
@@ -293,7 +309,14 @@ const CameraEvaluation = () => {
       }
 
       setIsAnalyzing(true);
-      // Agora não usamos timeout fixo de 5s — aguardamos retorno “parou”
+      
+      // Capture video frames every 200ms (5 frames per second)
+      frameIntervalRef.current = setInterval(() => {
+        const frame = captureVideoFrame();
+        if (frame && videoFramesRef.current.length < 100) { // Limit to 100 frames (~20 seconds)
+          videoFramesRef.current.push(frame);
+        }
+      }, 200);
     }, 1000);
   };
 
@@ -335,6 +358,12 @@ const CameraEvaluation = () => {
     clearTimers();
     setCountdown(null);
 
+    // Stop capturing frames
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+    }
+
     if (isBluetoothAvailable && connectedRef.current) {
       await sendBluetoothCommand('off\n');
       console.log('⛔ Comando OFF enviado ao carrinho');
@@ -343,6 +372,7 @@ const CameraEvaluation = () => {
     const finalScoreHistory = scoreHistoryRef.current;
     const finalLandmarksHistory = landmarksHistoryRef.current;
     const finalFeedbacksHistory = feedbacksHistoryRef.current;
+    const finalVideoFrames = videoFramesRef.current;
 
     setSession({ ...DEFAULT_CAMERA_SESSION_STATE });
     setIsAnalyzing(false);
@@ -383,6 +413,7 @@ const CameraEvaluation = () => {
       feedback: finalFeedbacksHistory,
       metrics: transformMetrics(metricsRef.current),
       landmark_frames: buildLandmarkPayload(finalLandmarksHistory),
+      video_frames: finalVideoFrames,
     };
 
     try {
@@ -398,6 +429,7 @@ const CameraEvaluation = () => {
           scoreHistory: finalScoreHistory,
           landmarksHistory: finalLandmarksHistory,
           feedbacksHistory: finalFeedbacksHistory,
+          videoFrames: finalVideoFrames,
           session: savedSession,
         },
       });
@@ -540,15 +572,21 @@ const CameraEvaluation = () => {
                 width={640}
                 height={480}
                 className="absolute inset-0 w-full h-full object-cover"
-              />
-
-              {/* Camera error */}
+              />              {/* Camera error */}
               {error && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/70">
                   <div className="text-center text-white p-6">
                     <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
-                    <p className="text-sm mb-2">Error: can't access the camera</p>
-                    <p className="text-xs text-white/70">{error}</p>
+                    <p className="text-sm mb-2 font-semibold">Erro ao acessar a câmera</p>
+                    <p className="text-xs text-white/70 mb-4">{error}</p>
+                    <Button
+                      onClick={restartCamera}
+                      disabled={isInitializing}
+                      className="bg-white/20 hover:bg-white/30 text-white border border-white/30"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      {isInitializing ? 'Tentando...' : 'Tentar Novamente'}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -559,13 +597,11 @@ const CameraEvaluation = () => {
                 <div className="absolute top-0 right-0 w-6 h-6 border-r-2 border-t-2 border-white/50"></div>
                 <div className="absolute bottom-0 left-0 w-6 h-6 border-l-2 border-b-2 border-white/50"></div>
                 <div className="absolute bottom-0 right-0 w-6 h-6 border-r-2 border-b-2 border-white/50"></div>
-              </div>
-
-              {/*              Status overlay */}
+              </div>              {/*              Status overlay */}
               <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
                 {!isReady && !error && (
                   <Badge className="bg-yellow-500/90 text-white">
-                    Initing the camera...
+                    {isInitializing ? 'Iniciando câmera...' : 'Carregando...'}
                   </Badge>
                 )}
                 {isAnalyzing && (
@@ -573,16 +609,14 @@ const CameraEvaluation = () => {
                     ● LIVE
                   </Badge>
                 )}
-              </div>
-
-              {/* Countdown /              Status overlay center */}
+              </div>              {/* Countdown /              Status overlay center */}
               {!session.isActive && isReady && !error && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                   <div className="text-center text-white">
                     <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Camera className="w-8 h-8 text-white" />
                     </div>
-                    <p className="text-white/80">Stand inside the frame</p>
+                    <p className="text-white/80">Posicione-se dentro do quadro</p>
                   </div>
                 </div>
               )}

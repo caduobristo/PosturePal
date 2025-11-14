@@ -187,6 +187,13 @@ async function fetchSession(sessionId) {
   return s || null;
 }
 
+async function deleteSession(sessionId) {
+  const sessions = LocalStore.getSessions();
+  const filtered = sessions.filter(s => s.id !== sessionId);
+  LocalStore.saveSessions(filtered);
+  return true;
+}
+
 export default {
   initDB,
   registerUser,
@@ -195,4 +202,5 @@ export default {
   createSession,
   listSessionsForUser,
   fetchSession,
+  deleteSession,
 };

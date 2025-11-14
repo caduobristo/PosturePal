@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Pose, POSE_CONNECTIONS } from '@mediapipe/pose';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
@@ -41,7 +41,7 @@ export const useMediaPipePose = () => {
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
-      // Desenhar vídeo
+      // Desenhar v├¡deo
       canvasCtx.drawImage(
         results.image,
         0,
@@ -70,7 +70,7 @@ export const useMediaPipePose = () => {
 
     setPose(poseDetector);
 
-    // Inicializar câmera
+    // Inicializar c├ómera
     if (videoRef.current) {
       const cam = new Camera(videoRef.current, {
         onFrame: async () => {
@@ -80,7 +80,7 @@ export const useMediaPipePose = () => {
         },
         width: 640,
         height: 480,
-        facingMode: 'user', // Câmera frontal
+        facingMode: 'user', // C├ómera frontal
       });
 
       cam.start()
@@ -89,7 +89,7 @@ export const useMediaPipePose = () => {
           setCamera(cam);
         })
         .catch((err) => {
-          console.error('Erro ao iniciar câmera:', err);
+          console.error('Erro ao iniciar c├ómera:', err);
           setError(err.message);
         });
     }

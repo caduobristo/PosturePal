@@ -1,11 +1,17 @@
+import position1 from './position1.png';
+import position2 from './position2.png';
+import position3 from './position3.png';
+import position4 from './position4.png';
+import position5 from './position5.png';
+import releve from './releve.png';
+
 export const EXERCISES = [
   {
     id: '1',
-    name: 'First Position',
+    name: 'Bras Bas',
     difficulty: 'Beginner',
     description: 'Basic foot position with heels together, toes turned out.',
-    image:
-      'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=300&h=200&fit=crop',
+    image: position1,
     keyPoints: [
       'Heels together',
       'Toes turned out',
@@ -17,11 +23,10 @@ export const EXERCISES = [
   },
   {
     id: '2',
-    name: 'Second Position',
+    name: 'À la seconde',
     difficulty: 'Beginner',
     description: 'One leg extended behind, body in line.',
-    image:
-      'https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=300&h=200&fit=crop',
+    image: position2,
     keyPoints: [
       'Extended leg alignment',
       'Hip square',
@@ -33,11 +38,10 @@ export const EXERCISES = [
   },
   {
     id: '3',
-    name: 'Third Position',
+    name: 'Troisième Position',
     difficulty: 'Beginner',
     description: 'Deep knee bend maintaining turnout.',
-    image:
-      'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&h=200&fit=crop',
+    image: position3,
     keyPoints: [
       'Knee alignment',
       'Straight back',
@@ -49,11 +53,10 @@ export const EXERCISES = [
   },
   {
     id: '4',
-    name: 'Fourth Position',
+    name: 'Quatrième Position',
     difficulty: 'Beginner',
     description: 'Graceful arm movements and carriage.',
-    image:
-      'https://images.unsplash.com/photo-1594736797933-d0401ba00de2?w=300&h=200&fit=crop',
+    image: position4,
     keyPoints: [
       'Flowing movement',
       'Shoulder stability',
@@ -65,11 +68,10 @@ export const EXERCISES = [
   },
   {
     id: '5',
-    name: 'Fifth Position',
+    name: 'Cinquième en Haut',
     difficulty: 'Beginner',
     description: 'Sliding foot along floor maintaining contact.',
-    image:
-      'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&h=200&fit=crop',
+    image: position5,
     keyPoints: [
       'Foot articulation',
       'Leg alignment',
@@ -78,14 +80,12 @@ export const EXERCISES = [
     ],
     averageScore: 86,
     completedTimes: 18,
-  },
-  {
+  },  {
     id: '6',
     name: 'Relevé',
     difficulty: 'Intermediate',
     description: 'Rising onto balls of feet with control.',
-    image:
-      'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=300&h=200&fit=crop',
+    image: releve,
     keyPoints: [
       'Balanced rise',
       'Ankle strength',

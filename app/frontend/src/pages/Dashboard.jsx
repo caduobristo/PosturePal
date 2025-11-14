@@ -14,14 +14,39 @@ import {
   Sparkles,
   ChevronRight,
   BarChart3,
-  Download
+  Download,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import useUserSessions from '../hooks/useUserSessions';
+import { useToast } from '../hooks/use-toast';
+import { deleteSession } from '../lib/api';
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { sessions, loading: loadingSessions } = useUserSessions(user?.id);
+  const { sessions, loading: loadingSessions, refresh } = useUserSessions(user?.id);
+  const { toast } = useToast();
+  const handleDeleteSession = async (sessionId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!window.confirm('Are you sure you want to delete this session?')) {
+      return;
+    }    try {
+      await deleteSession(sessionId);
+      toast({
+        title: 'Session deleted',
+        description: 'The session was successfully removed.',
+      });
+      refresh();
+    } catch (error) {
+      toast({
+        title: 'Error deleting session',
+        description: error?.message || 'Failed to delete the session.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const stats = useMemo(() => {
     if (!sessions?.length) {
@@ -142,40 +167,48 @@ const Dashboard = () => {
               <div className="text-sm text-slate-500">
                 No sessions recorded yet. Start practicing to see your progress here!
               </div>
-            )}
-            {stats.recentSessions.map((session) => (
-              <Link key={session.id} to={`/result/${session.id}`}>
-                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-purple-200 hover:bg-purple-50/50 transition-all duration-200">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-rose-100 to-purple-100 rounded-lg flex items-center justify-center">
-                      <Target className="w-5 h-5 text-purple-600" />
+            )}            {stats.recentSessions.map((session) => (
+              <div key={session.id} className="relative group">
+                <Link to={`/result/${session.id}`}>
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-purple-200 hover:bg-purple-50/50 transition-all duration-200">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-rose-100 to-purple-100 rounded-lg flex items-center justify-center">
+                        <Target className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-800 text-sm">
+                          {session.exercise_name || session.exercise}
+                        </div>
+                        <div className="text-xs text-slate-500 flex items-center">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {new Date(session.created_at || session.date).toLocaleString()}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-semibold text-slate-800 text-sm">
-                        {session.exercise_name || session.exercise}
-                      </div>
-                      <div className="text-xs text-slate-500 flex items-center">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {new Date(session.created_at || session.date).toLocaleString()}
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge 
+                        className={`text-xs ${
+                          session.score >= 90 
+                            ? 'bg-emerald-100 text-emerald-700' 
+                            : session.score >= 80 
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {session.score}
+                      </Badge>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge 
-                      className={`text-xs ${
-                        session.score >= 90 
-                          ? 'bg-emerald-100 text-emerald-700' 
-                          : session.score >= 80 
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}
-                    >
-                      {session.score}
-                    </Badge>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  </div>
-                </div>
-              </Link>
+                </Link>
+                <button
+                  onClick={(e) => handleDeleteSession(session.id, e)}
+                  className="absolute top-2 right-2 p-1.5 rounded-md bg-red-100 text-red-600 opacity-0 group-hover:opacity-100 hover:bg-red-200 transition-all duration-200 z-10"
+                  aria-label="Delete session"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             ))}
           </CardContent>
         </Card>
