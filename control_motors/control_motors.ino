@@ -14,6 +14,10 @@ const int CLK = 32;
 volatile int pulseCount = 0;
 unsigned long lastTime = 0;
 
+volatile bool STATE_TIMER_ON = false;
+volatile unsigned char STATE_PWM_PERC = 255;
+volatile unsigned int STATE_MOVE_DURATION = 12000;
+
 // Sensores IR
 const int IR_LEFT_DO = 34;
 const int IR_RIGHT_DO = 35;
@@ -25,7 +29,6 @@ uint8_t irHitsLeft = 0, irHitsRight = 0;
 bool indoFrente = true;
 bool andando = false;
 unsigned long startMoveTime = 0;
-unsigned long moveDuration = 11000;
 
 // Parâmetros físicos
 const float PULSOS_POR_ROTACAO = 3800.0;
@@ -63,6 +66,19 @@ void setup() {
   frear();
 }
 
+void tratar_misc_comando(String cmd) {
+  // 'x' + n = atualizar o valor do PWM ('x' + porcentagem de 0-255, com 255=1, 0=1)
+  // 'y' + n = atualizar tempo do move duration ('y' + tempo em segundos)
+  // 'z' = toggle dot state timer
+  if(cmd[0] == 'x') {
+    STATE_PWM_PERC = cmd[1];
+  } else if(cmd[0] == 'y') {
+    STATE_MOVE_DURATION = cmd[1] * 1000;
+  } else if(cmd[0] == 'z') {
+    STATE_TIMER_ON = !STATE_TIMER_ON;
+  }
+}
+
 void loop() {
   // Comandos Bluetooth
   if (SerialBT.available()) {
@@ -80,12 +96,16 @@ void loop() {
     } 
     else if (comando == "frear") {
       frear();
+    } else {
+      tratar_misc_comando(comando);
     }
   }
 
-  // Tempo máximo de movimento
-  if (andando && millis() - startMoveTime >= moveDuration) {
+  if(STATE_TIMER_ON && andando && (millis() - startMoveTime) >= STATE_MOVE_DURATION){
     frear();
+  }
+  if(andando) {
+    ledcWrite(channelA, STATE_PWM_PERC); ledcWrite(channelB, STATE_PWM_PERC);
   }
 
   // Verificação de sensores IR
@@ -144,7 +164,7 @@ void iniciarFrente() {
   Serial.println("Movendo para frente");
   digitalWrite(IN1, LOW);  digitalWrite(IN2, HIGH);
   digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
-  ledcWrite(channelA, 255); ledcWrite(channelB, 255);
+  ledcWrite(channelA, STATE_PWM_PERC); ledcWrite(channelB, STATE_PWM_PERC);
 
   andando = true;
   irHitsLeft = irHitsRight = 0;
@@ -152,13 +172,15 @@ void iniciarFrente() {
   samplesSinceStart = 0;
   zeroSamples = 0;
   ultimaVelocidadeAtiva = millis();
+
+  delay(1000);
 }
 
 void iniciarRe() {
   Serial.println("Movendo para trás");
   digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW);  digitalWrite(IN4, HIGH);
-  ledcWrite(channelA, 255); ledcWrite(channelB, 255);
+  ledcWrite(channelA, STATE_PWM_PERC); ledcWrite(channelB, STATE_PWM_PERC);
 
   andando = true;
   irHitsLeft = irHitsRight = 0;
@@ -166,6 +188,8 @@ void iniciarRe() {
   samplesSinceStart = 0;
   zeroSamples = 0;
   ultimaVelocidadeAtiva = millis();
+
+  delay(1000);
 }
 
 void frear() {
