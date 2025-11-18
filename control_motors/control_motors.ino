@@ -23,7 +23,7 @@ const int IR_LEFT_DO = 34;
 const int IR_RIGHT_DO = 35;
 const bool IR_ACTIVE_LOW = true;
 const uint8_t IR_HITS_TO_STOP = 2;
-uint8_t irHitsLeft = 0, irHitsRight = 0;
+uint8_t irHits = 0;
 
 // Encoder
 const int CLK = 32;
@@ -167,6 +167,7 @@ void update_mov_state(MovementState new_mov){
     }
   } else if(new_mov == CMD_STOP) {
     ctrl_reset();
+    irHits = 0;
   }
   mov_state = new_mov;
 }
@@ -202,20 +203,14 @@ bool mov_must_stop(){
     return true;
   }
   if(mov_state == MOV_LEFT){
-    const int l = digitalRead(IR_LEFT_DO);
-    // Low is active
-    if (l == LOW) {
-      SerialBT.println("parou_left");
-      return true;
-    };
+    irHits += digitalRead(IR_LEFT_DO) == LOW;
   }
   else if(mov_state == MOV_RIGHT) {
-    int r = digitalRead(IR_RIGHT_DO);
-    // Low is active
-    if (r == LOW) {
-      SerialBT.println("parou_right");
+    irHits += digitalRead(IR_RIGHT_DO) == LOW;
+  }
+  if(irHits > IR_HITS_TO_STOP){
+      SerialBT.println("parou_IR");
       return true;
-    };
   }
   if(STATE_TIMER_ON && time_since_mov_start() >= STATE_MOVE_DURATION){
     return true;
