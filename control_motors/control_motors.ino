@@ -6,7 +6,7 @@ BluetoothSerial SerialBT;
 #define CMD_GO_LEFT 'b'
 #define CMD_STOP 'c'
 #define CMD_CTRL_UPDATE_TARGET_VEL 'i' // [1] atualizar velocidade target do controle
-#define CMD_CTRL_TOGGLE 'j
+#define CMD_CTRL_TOGGLE 'j'
 #define CMD_UPDATE_PWM_PERC 'x' // [1] atualizar o valor do PWM (0-255 = 0%-100%)
 #define CMD_TIMER_UPDATE_DURATION 'y' // [1] atualizar tempo do move duration em segundos
 #define CMD_TIMER_TOGGLE 'z'
