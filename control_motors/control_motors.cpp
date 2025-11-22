@@ -1,4 +1,4 @@
-#define IS_ESP32 true
+#define IS_ESP32 false
 
 #if IS_ESP32
   #include "BluetoothSerial.h"
