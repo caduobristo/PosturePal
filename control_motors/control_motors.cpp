@@ -108,7 +108,7 @@ enum MovementState {
 enum MovementState mov_state = MOV_STOPPED;
 
 const float MAX_TIME_READ_ZERO = 0.5; // after this time reading zeros and car moving, it should stop
-const float MACHINE_STATE_UPDATE_INTERVAL = 0.05;
+const float MACHINE_STATE_UPDATE_INTERVAL_MS = 50;
 
 const float CAR_WHEEL_R = 0.00325;
 const float CAR_WHEEL_CIRC = 2 * 3.1415 * CAR_WHEEL_R;
@@ -128,7 +128,7 @@ int get_and_reset_pulse_count() {
     interrupts();
     return pulses;
     #else
-    return 10; // Simulação
+    return 1; // Simulação
     #endif
 }
 
@@ -142,9 +142,9 @@ float time_since_mov_start() {
 bool ctrl_is_init = false;
 float ctrl_target_vel = 0.2;
 float ctrl_current_vel = 0;
-const float ctrl_P = 1;
-const float ctrl_I = 1;
-const float ctrl_D = 0;
+float ctrl_P = 2;
+float ctrl_I = 1;
+float ctrl_D = 0;
 float ctrl_kp_err = 0;
 float ctrl_ki_err = 0;
 float ctrl_kd_err = 0;
@@ -410,7 +410,7 @@ void loop() {
   }
 
   mov_machine_state();
-  delay(MACHINE_STATE_UPDATE_INTERVAL);
+  delay(MACHINE_STATE_UPDATE_INTERVAL_MS);
 }
 
 #if !IS_ESP32
@@ -420,7 +420,6 @@ int main(){
   while(true){
     loop();
     print_state();
-    delay(1000);
   }
   return 0;
 }
