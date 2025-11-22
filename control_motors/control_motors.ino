@@ -392,8 +392,6 @@ void loop() {
 
   mov_machine_state();
   delay(MACHINE_STATE_UPDATE_INTERVAL);
-  print_state();
-  delay(1000);
 }
 
 #if !IS_ESP32
@@ -402,6 +400,8 @@ int main(){
   update_mov_state(MOV_RIGHT);
   while(true){
     loop();
+    print_state();
+    delay(1000);
   }
   return 0;
 }
