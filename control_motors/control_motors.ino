@@ -59,6 +59,10 @@
           return *this;
       }
 
+      int length() const {
+          return data.length();
+      }
+
       // Implicit conversions:
       operator std::string() const { return data; }
   };
@@ -69,6 +73,7 @@
 #define CMD_STOP 'c'
 #define CMD_CTRL_UPDATE_TARGET_VEL 'i' // [1] atualizar velocidade target do controle
 #define CMD_CTRL_TOGGLE 'j'
+#define CMD_CTRL_UPDATE_PARAM 'k' // [1] parametro pra atualizar: p, i, d; [2] novo valor = val * 10.0/255 
 #define CMD_UPDATE_PWM_PERC 'x' // [1] atualizar o valor do PWM (0-255 = 0%-100%)
 #define CMD_TIMER_UPDATE_DURATION 'y' // [1] atualizar tempo do move duration em segundos
 #define CMD_TIMER_TOGGLE 'z'
@@ -246,6 +251,8 @@ void treat_cmd(String cmd) {
   // 'x' + n = atualizar o valor do PWM ('x' + porcentagem de 0-255, com 255=1, 0=1)
   // 'y' + n = atualizar tempo do move duration ('y' + tempo em segundos)
   // 'z' = toggle dot state timer
+  if(cmd.length() < 1) return;
+
   if(cmd[0] == CMD_GO_RIGHT) {
     update_mov_state(MOV_RIGHT);
   } else if(cmd[0] == CMD_GO_LEFT) {
@@ -253,12 +260,24 @@ void treat_cmd(String cmd) {
   } else if(cmd[0] == CMD_STOP) {
     update_mov_state(MOV_STOPPED);
   } else if(cmd[0] == CMD_CTRL_UPDATE_TARGET_VEL) {
+    if(cmd.length() < 2) return;
     ctrl_target_vel = (CAR_MAX_VELOCITY * cmd[1]) / 255;
   } else if(cmd[0] == CMD_CTRL_TOGGLE) {
     STATE_CONTROL_ACTIVE = !STATE_CONTROL_ACTIVE;
+  } else if(cmd[0] == CMD_CTRL_UPDATE_PARAM) {
+    if(cmd.length() < 3) return;
+    if(cmd[1] == 'p'){
+      ctrl_P = (cmd[2] * 10.0f) / 255.0f;
+    } else if(cmd[1] == 'i'){
+      ctrl_I = (cmd[2] * 10.0f) / 255.0f;
+    } else if(cmd[1] == 'd'){
+      ctrl_D = (cmd[2] * 10.0f) / 255.0f;
+    }
   } else if(cmd[0] == CMD_UPDATE_PWM_PERC) {
+    if(cmd.length() < 2) return;
     STATE_PWM_PERC = cmd[1];
   } else if(cmd[0] == CMD_TIMER_UPDATE_DURATION) {
+    if(cmd.length() < 2) return;
     STATE_MOVE_DURATION = cmd[1];
   } else if(cmd[0] == CMD_TIMER_TOGGLE) {
     STATE_TIMER_ON = !STATE_TIMER_ON;
