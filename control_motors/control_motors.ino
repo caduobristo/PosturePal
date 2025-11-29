@@ -1,6 +1,33 @@
-#define IS_ESP32 true
+#define IS_ESP32
 
-#if IS_ESP32
+const float MAX_TIME_READ_ZERO = 0.5; // after this time reading zeros and car moving, it should stop
+const float MACHINE_STATE_UPDATE_INTERVAL_MS = 50;
+
+const float CAR_WHEEL_R = 0.00325;
+const float CAR_WHEEL_CIRC = 2 * 3.1415 * CAR_WHEEL_R;
+const float CTRL_SENSOR_PULSES_PER_ROT = 20;
+const float CAR_MAX_VELOCITY = 1; // m/s
+
+float ctrl_target_vel = 0.1;
+
+#define CMD_GO_RIGHT 'a'
+#define CMD_GO_LEFT 'b'
+#define CMD_STOP 'c'
+#define CMD_CTRL_UPDATE_TARGET_VEL 'i' // [1] atualizar velocidade target do controle
+#define CMD_CTRL_TOGGLE 'j'
+#define CMD_CTRL_UPDATE_PARAM 'k' // [1] parametro pra atualizar: p, i, d; [2] novo valor = val * 10.0/255 
+#define CMD_REPORT 'r' 
+#define CMD_UPDATE_PWM_PERC 'x' // [1] atualizar o valor do PWM (0-255 = 0%-100%)
+#define CMD_TIMER_UPDATE_DURATION 'y' // [1] atualizar tempo do move duration em segundos
+#define CMD_TIMER_TOGGLE 'z'
+
+bool STATE_TIMER_ON = false;
+bool STATE_CONTROL_ACTIVE = true;
+unsigned char STATE_PWM_PERC = 255;
+float STATE_MOVE_DURATION = 12;
+
+
+#ifdef IS_ESP32
   #include "BluetoothSerial.h"
 
   BluetoothSerial SerialBT;
@@ -72,16 +99,6 @@
   };
 #endif
 
-#define CMD_GO_RIGHT 'a'
-#define CMD_GO_LEFT 'b'
-#define CMD_STOP 'c'
-#define CMD_CTRL_UPDATE_TARGET_VEL 'i' // [1] atualizar velocidade target do controle
-#define CMD_CTRL_TOGGLE 'j'
-#define CMD_CTRL_UPDATE_PARAM 'k' // [1] parametro pra atualizar: p, i, d; [2] novo valor = val * 10.0/255 
-#define CMD_UPDATE_PWM_PERC 'x' // [1] atualizar o valor do PWM (0-255 = 0%-100%)
-#define CMD_TIMER_UPDATE_DURATION 'y' // [1] atualizar tempo do move duration em segundos
-#define CMD_TIMER_TOGGLE 'z'
-
 // Pinos dos motores
 const int IN1 = 25, IN2 = 26, IN3 = 27, IN4 = 14;
 const int ENA = 4, ENB = 5;
@@ -100,32 +117,19 @@ uint8_t irHits = 0;
 const int CLK = 32;
 volatile int enc_pulseCount = 0;
 
-bool STATE_TIMER_ON = false;
-bool STATE_CONTROL_ACTIVE = true;
-unsigned char STATE_PWM_PERC = 255;
-float STATE_MOVE_DURATION = 12;
-
 // Estado de direção e movimento
 enum MovementState {
   MOV_RIGHT, MOV_LEFT, MOV_STOPPED
 };
 enum MovementState mov_state = MOV_STOPPED;
 
-const float MAX_TIME_READ_ZERO = 0.5; // after this time reading zeros and car moving, it should stop
-const float MACHINE_STATE_UPDATE_INTERVAL_MS = 50;
-
-const float CAR_WHEEL_R = 0.00325;
-const float CAR_WHEEL_CIRC = 2 * 3.1415 * CAR_WHEEL_R;
-const float CTRL_SENSOR_PULSES_PER_ROT = 20;
-const float CAR_MAX_VELOCITY = 1; // m/s
-
-#if IS_ESP32
+#ifdef IS_ESP32
 // Interrupção do encoder
 void IRAM_ATTR encoderISR() { enc_pulseCount++; }
 #endif
 
 int get_and_reset_pulse_count() {
-    #if IS_ESP32
+    #ifdef IS_ESP32
     noInterrupts();
     int pulses = enc_pulseCount;
     enc_pulseCount = 0;
@@ -144,7 +148,6 @@ float time_since_mov_start() {
 
 // Control parameters
 bool ctrl_is_init = false;
-float ctrl_target_vel = 0.1;
 float ctrl_current_vel = 0;
 float ctrl_P = 2;
 float ctrl_I = 1;
@@ -237,12 +240,12 @@ void update_mov_state(MovementState new_mov){
       start_move_time = now_millis();
       ctrl_init();
     }
-  } else if(new_mov == CMD_GO_LEFT) {
+  } else if(new_mov == MOV_LEFT) {
     if(mov_state != MOV_LEFT){
       start_move_time = now_millis();
       ctrl_init();
     }
-  } else if(new_mov == CMD_STOP) {
+  } else if(new_mov == MOV_STOPPED) {
     ctrl_reset();
     irHits = 0;
   }
@@ -285,10 +288,18 @@ void treat_cmd(String cmd) {
     STATE_MOVE_DURATION = cmd[1];
   } else if(cmd[0] == CMD_TIMER_TOGGLE) {
     STATE_TIMER_ON = !STATE_TIMER_ON;
+  } else if(cmd[0] == CMD_REPORT) {
+    print_state();
+  } else {
+    MPRINT("unrecognized cmd: ");
+    MPRINT(cmd.c_str());
+    MPRINT("\n");
   }
 }
 
 bool mov_must_stop(){
+  if(mov_state == MOV_STOPPED) return false;
+
   if(ctrl_sensor_time_reading_zero() > MAX_TIME_READ_ZERO){
     MPRINT("parou tempo zerado\n");
     return true;
@@ -300,7 +311,7 @@ bool mov_must_stop(){
     irHits += READ_PIN(IR_RIGHT_DO) == LOW;
   }
   if(irHits > IR_HITS_TO_STOP){
-      MPRINT("parou_IR\n");
+      MPRINT("parou IR\n");
       return true;
   }
   if(STATE_TIMER_ON && time_since_mov_start() >= STATE_MOVE_DURATION){
@@ -337,14 +348,14 @@ void mov_machine_state() {
 
 
 void setup() {
-  #if IS_ESP32
+  #ifdef IS_ESP32
   Serial.begin(115200);
   SerialBT.begin("PosturePal");
   #endif
 
   MPRINT("Bluetooth iniciado!\n");
 
-  #if IS_ESP32
+  #ifdef IS_ESP32
   pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
   ledcSetup(channelA, freq, resolution);
@@ -395,7 +406,7 @@ void print_state(){
 
 void loop() {
   // Comandos Bluetooth
-  #if IS_ESP32
+  #ifdef IS_ESP32
   if (SerialBT.available()) {
     String comando = SerialBT.readStringUntil('\n');
   
@@ -418,7 +429,7 @@ void loop() {
   delay(MACHINE_STATE_UPDATE_INTERVAL_MS);
 }
 
-#if !IS_ESP32
+#ifndef IS_ESP32
 int main(){
   setup();
   update_mov_state(MOV_RIGHT);
