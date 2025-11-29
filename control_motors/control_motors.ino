@@ -4,7 +4,7 @@
   #include "BluetoothSerial.h"
 
   BluetoothSerial SerialBT;
-  #define PRINT SerialBT.print
+  #define MPRINT SerialBT.printf
   #define now_millis() millis()
 
   #define WRITE_PIN digitalWrite
@@ -22,7 +22,7 @@
   #define LOW 0
   #define HIGH 1
 
-  #define PRINT printf
+  #define MPRINT printf
   unsigned long now_millis() {
     return (unsigned long)(clock() * 1000 / CLOCKS_PER_SEC);
   }
@@ -35,7 +35,7 @@
 
   void WRITE_PIN(int pin, unsigned char value) {pins_values[pin] = value; }
   unsigned char READ_PIN(int pin) { return pins_values[pin]; }
-  void WRITE_PWM(int channel, unsigned char value) { PRINT("PWM Channel %d set to %d\n", channel, value); }
+  void WRITE_PWM(int channel, unsigned char value) { MPRINT("PWM Channel %d set to %d\n", channel, value); }
 
   class String {
   private:
@@ -61,6 +61,10 @@
 
       int length() const {
           return data.length();
+      }
+
+      char* c_str() const {
+          return data.c_str();
       }
 
       // Implicit conversions:
@@ -140,7 +144,7 @@ float time_since_mov_start() {
 
 // Control parameters
 bool ctrl_is_init = false;
-float ctrl_target_vel = 0.2;
+float ctrl_target_vel = 0.1;
 float ctrl_current_vel = 0;
 float ctrl_P = 2;
 float ctrl_I = 1;
@@ -286,7 +290,7 @@ void treat_cmd(String cmd) {
 
 bool mov_must_stop(){
   if(ctrl_sensor_time_reading_zero() > MAX_TIME_READ_ZERO){
-    PRINT("parou tempo zerado\n");
+    MPRINT("parou tempo zerado\n");
     return true;
   }
   if(mov_state == MOV_LEFT){
@@ -296,7 +300,7 @@ bool mov_must_stop(){
     irHits += READ_PIN(IR_RIGHT_DO) == LOW;
   }
   if(irHits > IR_HITS_TO_STOP){
-      PRINT("parou_IR\n");
+      MPRINT("parou_IR\n");
       return true;
   }
   if(STATE_TIMER_ON && time_since_mov_start() >= STATE_MOVE_DURATION){
@@ -338,7 +342,7 @@ void setup() {
   SerialBT.begin("PosturePal");
   #endif
 
-  PRINT("Bluetooth iniciado!\n");
+  MPRINT("Bluetooth iniciado!\n");
 
   #if IS_ESP32
   pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
@@ -363,30 +367,30 @@ void setup() {
 }
 
 void print_state(){
-  PRINT("NOW: %d\n", int(now_millis()));
+  MPRINT("NOW: %d\n", int(now_millis()));
 
-  PRINT("target_vel: %f, current_vel: %f\n", ctrl_target_vel, ctrl_current_vel);
-  PRINT("ctrl_is_zero: %f, ctrl_firs_zero_read: %d\n", int(ctrl_sensor_is_zero), int(ctrl_sensor_first_zero_read));
+  MPRINT("target_vel: %f, current_vel: %f\n", ctrl_target_vel, ctrl_current_vel);
+  MPRINT("ctrl_is_zero: %f, ctrl_firs_zero_read: %d\n", int(ctrl_sensor_is_zero), int(ctrl_sensor_first_zero_read));
 
-  PRINT("kp_err: %f, ki_err: %f, kd_err: %f\n", ctrl_kp_err, ctrl_ki_err, ctrl_kd_err);
-  PRINT("ctrl_out: %f\n", ctrl_out_pwm);
-  PRINT("pwm_out: %d\n", (unsigned char)(ctrl_out_pwm * 255));
+  MPRINT("kp_err: %f, ki_err: %f, kd_err: %f\n", ctrl_kp_err, ctrl_ki_err, ctrl_kd_err);
+  MPRINT("ctrl_out: %f\n", ctrl_out_pwm);
+  MPRINT("pwm_out: %d\n", (unsigned char)(ctrl_out_pwm * 255));
 
-  PRINT("P: %f, I: %f, D: %f\n", ctrl_P, ctrl_I, ctrl_D);
-  PRINT("kp_err: %f, ki_err: %f, kd_err: %f\n", ctrl_kp_err, ctrl_ki_err, ctrl_kd_err);
-  PRINT("ctrl_out: %f\n", ctrl_out_pwm);
-  PRINT("pwm_out: %d\n", (unsigned char)(ctrl_out_pwm * 255));
+  MPRINT("P: %f, I: %f, D: %f\n", ctrl_P, ctrl_I, ctrl_D);
+  MPRINT("kp_err: %f, ki_err: %f, kd_err: %f\n", ctrl_kp_err, ctrl_ki_err, ctrl_kd_err);
+  MPRINT("ctrl_out: %f\n", ctrl_out_pwm);
+  MPRINT("pwm_out: %d\n", (unsigned char)(ctrl_out_pwm * 255));
   
-  PRINT("Mov state: ");
-  if(mov_state == MOV_RIGHT) PRINT("RIGHT\n");
-  else if(mov_state == MOV_LEFT) PRINT("LEFT\n");
-  else if(mov_state == MOV_STOPPED) PRINT("STOPPED\n");
+  MPRINT("Mov state: ");
+  if(mov_state == MOV_RIGHT) MPRINT("RIGHT\n");
+  else if(mov_state == MOV_LEFT) MPRINT("LEFT\n");
+  else if(mov_state == MOV_STOPPED) MPRINT("STOPPED\n");
 
-  PRINT("STATE_CONTROL_ACTIVE: %d\n", STATE_CONTROL_ACTIVE);
-  PRINT("STATE_PWM_PERC: %d\n", int(STATE_PWM_PERC));
-  PRINT("STATE_TIMER_ON: %d\n", int(STATE_TIMER_ON));
-  PRINT("STATE_MOVE_DURATION: %d\n", int(STATE_MOVE_DURATION));
-  PRINT("\n");
+  MPRINT("STATE_CONTROL_ACTIVE: %d\n", STATE_CONTROL_ACTIVE);
+  MPRINT("STATE_PWM_PERC: %d\n", int(STATE_PWM_PERC));
+  MPRINT("STATE_TIMER_ON: %d\n", int(STATE_TIMER_ON));
+  MPRINT("STATE_MOVE_DURATION: %d\n", int(STATE_MOVE_DURATION));
+  MPRINT("\n");
 }
 
 void loop() {
@@ -398,8 +402,9 @@ void loop() {
     comando.trim();
     // comando.toLowerCase();
 
-    PRINT("Comando recebido: ");
-    PRINT(comando + '\n');
+    MPRINT("Comando recebido: ");
+    MPRINT(comando.c_str());
+    MPRINT("\n");
 
     treat_cmd(comando);
   }
