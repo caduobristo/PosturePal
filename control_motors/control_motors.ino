@@ -1,19 +1,21 @@
 #define IS_ESP32
 
-const float MAX_TIME_READ_ZERO = 1.2; // after this time reading zeros and car moving, it should stop
+const float MAX_TIME_READ_ZERO = 0.5; // after this time reading zeros and car moving, it should stop
 const float MACHINE_STATE_UPDATE_INTERVAL_MS = 50;
 
 const float CAR_WHEEL_R = 0.00325;
 const float CAR_WHEEL_CIRC = 2 * 3.1415 * CAR_WHEEL_R;
-const float CTRL_SENSOR_PULSES_PER_ROT = 20;
-const int MIN_PULSE_COUNT = 4;
+const float CTRL_SENSOR_PULSES_PER_ROT = 10;
+const int MIN_PULSE_COUNT = 1;
 const float CAR_MAX_VELOCITY = 1; // m/s
 
 const uint8_t IR_HITS_TO_STOP = 2;
 
-const float MAX_CTRL_CURRENT_READ = 0.2;
-float ctrl_target_vel = 0.1;
-float ctrl_P = 7;
+const float MAX_CTRL_CURRENT_READ = 1;
+const int CTRL_MOVING_AVG_SAMPLES = 4;
+float ctrl_avg_alpha = 0.3; // 0-1, alpha for "decay" of PID to stable value (0.1=slow, 0.5=fast)
+float ctrl_target_vel = 0.18;
+float ctrl_P = 4;
 float ctrl_I = 5;
 float ctrl_D = 0;
 
@@ -21,9 +23,9 @@ float ctrl_D = 0;
 #define CMD_GO_LEFT 'b'
 #define CMD_STOP 'c'
 #define CMD_GO_TOGGLE 'd'
-#define CMD_CTRL_UPDATE_TARGET_VEL 'i' // [1] atualizar velocidade target do controle
+#define CMD_CTRL_UPDATE_TARGET_VEL 'i' // [1] ctrl_target_vel = cmd[1...];
 #define CMD_CTRL_TOGGLE 'j'
-#define CMD_CTRL_UPDATE_PARAM 'k' // [1] parametro pra atualizar: p, i, d; [2] novo valor = val * 10.0/255 
+#define CMD_CTRL_UPDATE_PARAM 'k' // [1] parametro pra atualizar: p, i, d; novo valor = = cmd[2...]
 #define CMD_REPORT 'r' 
 #define CMD_UPDATE_PWM_PERC 'x' // [1] atualizar o valor do PWM (0-255 = 0%-100%)
 #define CMD_TIMER_UPDATE_DURATION 'y' // [1] atualizar tempo do move duration em segundos
@@ -122,9 +124,10 @@ uint8_t irHits = 0;
 
 // Encoder
 const int ENC_CLK = 32;
-const int ENC_DT = 35;
+const int ENC_DT = 33;
 volatile int enc_pulseCount = 0;
 volatile int lastCLK = 0;
+volatile int lastDT = 0;
 
 #ifdef IS_ESP32
 // Interrupção do encoder
@@ -132,18 +135,12 @@ void IRAM_ATTR encoderISR() {
     int clkState = digitalRead(ENC_CLK);
     int dtState  = digitalRead(ENC_DT);
 
-    // If ENC_CLK changed, determine direction using ENC_DT
-    if (clkState != lastCLK) {
-        enc_pulseCount += 1;   // CW
-        /*
-        if (dtState != clkState){
-            enc_pulseCount += 1;   // CW
-        } else {
-            enc_pulseCount -= 1;   // CCW
-        }
-        */
-    }; 
+    if(clkState != lastCLK && dtState != lastDT){
+      if (clkState != dtState)
+        enc_pulseCount++;
+    }
     lastCLK = clkState;
+    lastDT = dtState;
 }
 #endif
 
@@ -176,8 +173,11 @@ unsigned long start_move_time = 0;
 float time_since_mov_start() {
   return (now_millis() - start_move_time) * 0.001f;
 }
-float time_since_start() {
-  return (now_millis() - global_start_time) * 0.001f;
+float since_start(unsigned long t) {
+  return (t - global_start_time) * 0.001f;
+}
+float get_time_since_start() {
+  return since_start(now_millis());
 }
 
 // Control parameters
@@ -188,6 +188,7 @@ float ctrl_ki_err = 0;
 float ctrl_kd_err = 0;
 
 float ctrl_out_pwm = 0; // 0-1
+float ctrl_mov_avg_val = 0;
 
 unsigned long ctrl_sensor_last_read = 0;
 unsigned long ctrl_sensor_first_zero_read = 0;
@@ -207,11 +208,13 @@ void ctrl_reset(){
     ctrl_sensor_last_read = 0;
     ctrl_sensor_first_zero_read = 0;
     ctrl_sensor_is_zero = false;
+    ctrl_mov_avg_val = 0;
 }
 
 void ctrl_init(){
     ctrl_reset();
     ctrl_sensor_last_read = now_millis();
+    ctrl_sensor_first_zero_read = now_millis();
     ctrl_is_init = true;
 }
 
@@ -255,7 +258,9 @@ void ctrl_update_out_pwm() {
     float I = ctrl_I * ctrl_ki_err;
     float D = ctrl_D * ctrl_kd_err;
 
-    ctrl_out_pwm = P + I + D;
+    const float curr_pwm = P + I + D;
+    ctrl_mov_avg_val = ctrl_mov_avg_val * (1.0 - ctrl_avg_alpha) + curr_pwm * ctrl_avg_alpha;
+    ctrl_out_pwm = ctrl_mov_avg_val;
     if(ctrl_out_pwm > 1){
       ctrl_out_pwm = 1;
     } else if (ctrl_out_pwm < 0){
@@ -266,7 +271,7 @@ void ctrl_update_out_pwm() {
 void ctrl_cycle() {
   const int pulses = get_and_reset_pulse_count();
   if(pulses > 0){
-    MPRINT("read %d pulses...\n", pulses);
+    // MPRINT("read %d pulses %d clk state %d dt State %d...\n", pulses, lastCLK, lastDT);
   }
   const float dist = ctrl_pulses2dist(pulses);
 
@@ -278,21 +283,35 @@ void ctrl_cycle() {
 void update_mov_state(int new_mov){
   if(new_mov == MOV_RIGHT) {
     if(mov_state != MOV_RIGHT){
+      MPRINT("cmd MOV_RIGHT\n");
       last_mov_state = MOV_RIGHT;
       start_move_time = now_millis();
       ctrl_init();
     }
   } else if(new_mov == MOV_LEFT) {
     if(mov_state != MOV_LEFT){
+      MPRINT("cmd MOV_LEFT\n");
       last_mov_state = MOV_LEFT;
       start_move_time = now_millis();
       ctrl_init();
     }
   } else if(new_mov == MOV_STOPPED) {
+    MPRINT("parou comando (%d reads) (%.3f s mov)\n", irHits, time_since_mov_start());
     ctrl_reset();
     irHits = 0;
   }
   mov_state = new_mov;
+}
+
+float safeParseFloat(const char *s, bool *ok) {
+    char *end;
+    double val = strtod(s, &end);
+    if (end == s) {
+        *ok = false;  // No digits found
+        return 0;
+    }
+    *ok = true;
+    return (float)val;
 }
 
 void treat_cmd(String cmd) {
@@ -304,10 +323,13 @@ void treat_cmd(String cmd) {
   if(cmd.length() < 1) return;
 
   if(cmd[0] == CMD_GO_RIGHT) {
+    MPRINT("CMD_GO_RIGHT received\n");
     update_mov_state(MOV_RIGHT);
   } else if(cmd[0] == CMD_GO_LEFT) {
+    MPRINT("CMD_GO_LEFT received\n");
     update_mov_state(MOV_LEFT);
   } else if(cmd[0] == CMD_STOP) {
+    MPRINT("CMD_STOP received\n");
     update_mov_state(MOV_STOPPED);
   } else if(cmd[0] == CMD_GO_TOGGLE) {
     int new_mov = MOV_STOPPED;
@@ -318,29 +340,48 @@ void treat_cmd(String cmd) {
         new_mov = MOV_LEFT;
       }
     }
+    MPRINT("Toggled mov state (new_mov=%d)\n", new_mov);
     update_mov_state(new_mov);
   } else if(cmd[0] == CMD_CTRL_UPDATE_TARGET_VEL) {
     if(cmd.length() < 2) return;
-    ctrl_target_vel = (CAR_MAX_VELOCITY * cmd[1]) / 255;
+    bool is_ok = false;
+    const float parsed_float = safeParseFloat(&cmd[1], &is_ok);
+    if(!is_ok){
+      MPRINT("Unable to parse float from command\n");
+      return;
+    }
+    ctrl_target_vel = parsed_float;
+    MPRINT("Updated ctrl_target_vel=%.3f\n", ctrl_target_vel);
   } else if(cmd[0] == CMD_CTRL_TOGGLE) {
     STATE_CONTROL_ACTIVE = !STATE_CONTROL_ACTIVE;
+    MPRINT("Toggle timer STATE_CONTROL_ACTIVE=%d\n", STATE_CONTROL_ACTIVE);
   } else if(cmd[0] == CMD_CTRL_UPDATE_PARAM) {
     if(cmd.length() < 3) return;
-    if(cmd[1] == 'p'){
-      ctrl_P = (cmd[2] * 10.0f) / 255.0f;
-    } else if(cmd[1] == 'i'){
-      ctrl_I = (cmd[2] * 10.0f) / 255.0f;
-    } else if(cmd[1] == 'd'){
-      ctrl_D = (cmd[2] * 10.0f) / 255.0f;
+    bool is_ok = false;
+    const float parsed_float = safeParseFloat(&cmd[2], &is_ok);
+    if(!is_ok){
+      MPRINT("Unable to parse float from command\n");
+      return;
     }
+    if(cmd[1] == 'p'){
+      ctrl_P = parsed_float;
+    } else if(cmd[1] == 'i'){
+      ctrl_I = parsed_float;
+    } else if(cmd[1] == 'd'){
+      ctrl_D = parsed_float;
+    }
+    MPRINT("Updated PID (P=%.2f, I=%.2f, D=%.2f)\n", ctrl_P, ctrl_I, ctrl_D);
   } else if(cmd[0] == CMD_UPDATE_PWM_PERC) {
     if(cmd.length() < 2) return;
     STATE_PWM_PERC = cmd[1];
+    MPRINT("Updated STATE_PWM_PERC=%d\n", STATE_PWM_PERC);
   } else if(cmd[0] == CMD_TIMER_UPDATE_DURATION) {
     if(cmd.length() < 2) return;
     STATE_MOVE_DURATION = cmd[1];
+    MPRINT("Updated STATE_MOVE_DURATION=%d\n", STATE_MOVE_DURATION);
   } else if(cmd[0] == CMD_TIMER_TOGGLE) {
     STATE_TIMER_ON = !STATE_TIMER_ON;
+    MPRINT("Toggle timer STATE_TIMER_ON=%d\n", STATE_TIMER_ON);
   } else if(cmd[0] == CMD_REPORT) {
     print_state();
   } else {
@@ -377,6 +418,8 @@ bool mov_must_stop(){
 }
 
 void mov_machine_state() {
+  ctrl_cycle();
+
   // TODO: CHECK IF THESE DIRECTIONS ARE CORRECT
   if(mov_state == MOV_RIGHT){
     WRITE_PIN(IN1, LOW);  WRITE_PIN(IN2, HIGH);
@@ -391,15 +434,13 @@ void mov_machine_state() {
     return;
   }
 
-  ctrl_cycle();
-
   unsigned char pwm_write = STATE_PWM_PERC;
   if(STATE_CONTROL_ACTIVE){
     pwm_write = (unsigned char)(ctrl_out_pwm * 255);
   }
 
   WRITE_PWM(channelA, pwm_write); WRITE_PWM(channelB, pwm_write);
-  // print_pwm_state();
+  print_pwm_state();
 }
 
 
@@ -438,12 +479,12 @@ void setup() {
 
 void print_pwm_state() {
   MPRINT("-------- PWM --------\n");
-  MPRINT("target_vel: %f, current_vel: %f\n", ctrl_target_vel, ctrl_current_vel);
-  MPRINT("ctrl_is_zero: %f, ctrl_firs_zero_read: %d\n", int(ctrl_sensor_is_zero), int(ctrl_sensor_first_zero_read));
+  MPRINT("target_vel: %.3f, current_vel: %.3f\n", ctrl_target_vel, ctrl_current_vel);
+  MPRINT("ctrl_is_zero: %d, ctrl_first_zero_read: %.3f\n", int(ctrl_sensor_is_zero), since_start(ctrl_sensor_first_zero_read));
 
-  MPRINT("P: %f, I: %f, D: %f\n", ctrl_P, ctrl_I, ctrl_D);
-  MPRINT("kp_err: %f, ki_err: %f, kd_err: %f\n", ctrl_kp_err, ctrl_ki_err, ctrl_kd_err);
-  MPRINT("ctrl_out: %f\n", ctrl_out_pwm);
+  MPRINT("P: %.2f, I: %.2f, D: %.2f\n", ctrl_P, ctrl_I, ctrl_D);
+  MPRINT("kp_err: %.3f, ki_err: %.3f, kd_err: %.3f\n", ctrl_kp_err, ctrl_ki_err, ctrl_kd_err);
+  MPRINT("ctrl_out: %.3f ctrl_mov_avg_val: %.3f\n", ctrl_out_pwm, ctrl_mov_avg_val);
   MPRINT("pwm_out: %d\n", (unsigned char)(ctrl_out_pwm * 255));
   MPRINT("---------------------\n");
 }
@@ -470,7 +511,7 @@ void print_options_state() {
 }
 
 void print_state(){
-  MPRINT("NOW: %d\n", int(time_since_start()));
+  MPRINT("NOW: %.3f\n", get_time_since_start());
 
   print_pwm_state();
   print_mov_state();
@@ -484,13 +525,13 @@ void loop() {
   #ifdef IS_ESP32
   if (SerialBT.available()) {
     String comando = SerialBT.readStringUntil('\n');
-  
-    comando.trim();
+
+    // comando.trim();
     // comando.toLowerCase();
 
-    MPRINT("Comando recebido: ");
+    MPRINT("Comando recebido: '");
     MPRINT(comando.c_str());
-    MPRINT("\n");
+    MPRINT("'\n");
 
     treat_cmd(comando);
   }
