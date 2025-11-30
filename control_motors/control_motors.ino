@@ -109,11 +109,19 @@ float STATE_MOVE_DURATION = 12;
   };
 #endif
 
-// Pinos dos motores
+#define CMD_GO_RIGHT 'a'
+#define CMD_GO_LEFT 'b'
+#define CMD_STOP 'c'
+#define CMD_CTRL_UPDATE_TARGET_VEL 'i'
+#define CMD_CTRL_TOGGLE 'j'
+#define CMD_UPDATE_PWM_PERC 'x'
+#define CMD_TIMER_UPDATE_DURATION 'y'
+#define CMD_TIMER_TOGGLE 'z'
+#define CMD_FRONT_TOGGLE 'f'
+
 const int IN1 = 25, IN2 = 26, IN3 = 27, IN4 = 14;
 const int ENA = 4, ENB = 5;
 
-// PWM
 const int freq = 20000, channelA = 0, channelB = 1, resolution = 8;
 
 // Sensores IR
