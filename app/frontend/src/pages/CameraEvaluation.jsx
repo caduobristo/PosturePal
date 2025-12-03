@@ -206,7 +206,7 @@ const CameraEvaluation = () => {
                 const normalized = String(rawValue ?? '')
                   .trim()
                   .toLowerCase();
-                if (normalized === 'parou') {
+                if (normalized.startsWith('parou')) {
                   console.log('📩 Carrinho enviou PAROU');
                   stopEvaluationRef.current();
                 }
