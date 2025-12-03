@@ -124,11 +124,55 @@ const isVisible = (lm, threshold = 0.5) => {
   return true;
 };
 
+// Calculate visibility confidence factor based on critical landmarks
+// Returns a value between 0.5 and 1.0 to reduce penalties during lateral camera views
+// Critical landmarks: nose, shoulders (2), elbows (2), wrists (2), hips (2)
+const getVisibilityConfidence = (landmarks) => {
+  if (!landmarks || landmarks.length === 0) return 0.5;
+
+  const criticalLandmarks = [
+    LANDMARK_INDICES.NOSE,
+    LANDMARK_INDICES.LEFT_SHOULDER,
+    LANDMARK_INDICES.RIGHT_SHOULDER,
+    LANDMARK_INDICES.LEFT_ELBOW,
+    LANDMARK_INDICES.RIGHT_ELBOW,
+    LANDMARK_INDICES.LEFT_WRIST,
+    LANDMARK_INDICES.RIGHT_WRIST,
+    LANDMARK_INDICES.LEFT_HIP,
+    LANDMARK_INDICES.RIGHT_HIP,
+  ];
+
+  let visibleCount = 0;
+  for (const idx of criticalLandmarks) {
+    if (isVisible(landmarks[idx])) {
+      visibleCount++;
+    }
+  }
+
+  // Confidence formula: max(0.5, visibleCount / totalCritical)
+  // Frontal (0°): 9/9 = 1.0 (full penalties)
+  // Semi-lateral (45°): 7/9 = 0.78 (78% penalties)
+  // Lateral (90°): 5/9 = 0.56 (56% penalties)
+  // Rear (180°): 4/9 = 0.5 (minimum, 50% penalties)
+  const confidence = Math.max(0.5, visibleCount / criticalLandmarks.length);
+  return confidence;
+};
+
+// Apply visibility confidence factor to a penalty
+// Reduces penalties when camera is at extreme angles (lateral views)
+const applyConfidenceFactor = (penalty, confidenceFactor) => {
+  if (penalty === 0) return 0;
+  return Math.floor(penalty * confidenceFactor);
+};
+
 // Analyzes posture based on landmarks
 export const analyzePosture = (landmarks, exercise) => {
   if (!landmarks || landmarks.length === 0 || !exercise) {
     return null;
   }
+
+  // Calculate visibility confidence at the start
+  const confidenceFactor = getVisibilityConfidence(landmarks);
 
   const feedback = [];
   let totalScore = 100;
@@ -153,6 +197,7 @@ export const analyzePosture = (landmarks, exercise) => {
   if (isVisible(leftShoulder) && isVisible(rightShoulder)) {
     const shoulderDiff = Math.abs(leftShoulder.y - rightShoulder.y);
     penalty = calculatePenalty(shoulderDiff, 0.05, 0.2, SHOULDER_ALIGNMENT_MAX_PENALTY);
+    penalty = applyConfidenceFactor(penalty, confidenceFactor);
     metrics.shoulderAlignment = calculateSeverity(
       penalty,
       SHOULDER_ALIGNMENT_MAX_PENALTY
@@ -187,6 +232,7 @@ export const analyzePosture = (landmarks, exercise) => {
   if (isVisible(leftHip) && isVisible(rightHip)) {
     const hipDiff = Math.abs(leftHip.y - rightHip.y);
     penalty = calculatePenalty(hipDiff, 0.05, 0.2, 10);
+    penalty = applyConfidenceFactor(penalty, confidenceFactor);
     metrics.hipAlignment = calculateSeverity(penalty, 10);
 
     if (penalty > 0) {
@@ -225,6 +271,7 @@ export const analyzePosture = (landmarks, exercise) => {
   if (isVisible(nose) && midHip) {
     const spineAlignment = Math.abs(nose.x - midHip.x);
     penalty = calculatePenalty(spineAlignment, 0.1, 0.2, 15);
+    penalty = applyConfidenceFactor(penalty, confidenceFactor);
     metrics.spineAlignment = calculateSeverity(penalty, 15);
 
     if (penalty > 0) {
@@ -264,6 +311,7 @@ export const analyzePosture = (landmarks, exercise) => {
       });
     } else if (kneeAngle < 140) {
       penalty = calculatePenalty(kneeAngle, 140, 80, 5);
+      penalty = applyConfidenceFactor(penalty, confidenceFactor);
       metrics.kneeAngle = calculateSeverity(penalty, 5);
       feedback.push({
         type: 'error',
@@ -300,6 +348,7 @@ export const analyzePosture = (landmarks, exercise) => {
     } else if (rightArmAngle > 140) {
       // Over-extended
       penalty = calculatePenalty(rightArmAngle, 140, 150, 15);
+      penalty = applyConfidenceFactor(penalty, confidenceFactor);
       metrics.rightArmExtension = calculateSeverity(penalty, 15);
       feedback.push({
         type: 'error',
@@ -310,6 +359,7 @@ export const analyzePosture = (landmarks, exercise) => {
     } else {
       // Under-extended
       penalty = calculatePenalty(rightArmAngle, 120, 110, 15);
+      penalty = applyConfidenceFactor(penalty, confidenceFactor);
       metrics.rightArmExtension = calculateSeverity(penalty, 15);
       feedback.push({
         type: 'error',
@@ -340,6 +390,7 @@ export const analyzePosture = (landmarks, exercise) => {
     } else if (leftArmAngle > 140) {
       // Over-extended
       penalty = calculatePenalty(leftArmAngle, 140, 150, 15);
+      penalty = applyConfidenceFactor(penalty, confidenceFactor);
       metrics.leftArmExtension = calculateSeverity(penalty, 15);
       feedback.push({
         type: 'error',
@@ -350,6 +401,7 @@ export const analyzePosture = (landmarks, exercise) => {
     } else {
       // Under-extended
       penalty = calculatePenalty(leftArmAngle, 120, 110, 15);
+      penalty = applyConfidenceFactor(penalty, confidenceFactor);
       metrics.leftArmExtension = calculateSeverity(penalty, 15);
       feedback.push({
         type: 'error',
@@ -380,6 +432,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else if (rightArmHeightAngle < 40) {
         penalty = calculatePenalty(rightArmHeightAngle, 40, 20, 15);
+        penalty = applyConfidenceFactor(penalty, confidenceFactor);
         metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -389,6 +442,7 @@ export const analyzePosture = (landmarks, exercise) => {
         totalScore -= penalty;
       } else {
         penalty = calculatePenalty(rightArmHeightAngle, 80, 100, 15);
+        penalty = applyConfidenceFactor(penalty, confidenceFactor);
         metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -405,6 +459,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(rightArmHeightAngle, 150, 120, 15);
+        penalty = applyConfidenceFactor(penalty, confidenceFactor);
         metrics.rightArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -435,6 +490,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else if (leftArmHeightAngle < 40) {
         penalty = calculatePenalty(leftArmHeightAngle, 40, 20, 15);
+        penalty = applyConfidenceFactor(penalty, confidenceFactor);
         metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -444,6 +500,7 @@ export const analyzePosture = (landmarks, exercise) => {
         totalScore -= penalty;
       } else {
         penalty = calculatePenalty(leftArmHeightAngle, 80, 100, 15);
+        penalty = applyConfidenceFactor(penalty, confidenceFactor);
         metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -460,6 +517,7 @@ export const analyzePosture = (landmarks, exercise) => {
         });
       } else {
         penalty = calculatePenalty(leftArmHeightAngle, 150, 120, 15);
+        penalty = applyConfidenceFactor(penalty, confidenceFactor);
         metrics.leftArmHeight = calculateSeverity(penalty, 15);
         feedback.push({
           type: 'error',
@@ -499,6 +557,7 @@ export const analyzePosture = (landmarks, exercise) => {
     }
 
     penalty = calculateDistancePenalty(handDistance, minHandDist, maxHandDist, 10);
+    penalty = applyConfidenceFactor(penalty, confidenceFactor);
     metrics.handDistance = calculateSeverity(penalty, 10);
 
     if (penalty > 0) {
@@ -542,11 +601,12 @@ export const analyzePosture = (landmarks, exercise) => {
       expectedDistance = 'far apart';
     } else {
       minFootDist = 0.01;
-      maxFootDist = 0.06;
+      maxFootDist = 0.2;
       expectedDistance = 'close';
     }
 
     penalty = calculateDistancePenalty(footDistance, minFootDist, maxFootDist, 10);
+    penalty = applyConfidenceFactor(penalty, confidenceFactor);
     metrics.footDistance = calculateSeverity(penalty, 10);
 
     if (penalty > 0) {

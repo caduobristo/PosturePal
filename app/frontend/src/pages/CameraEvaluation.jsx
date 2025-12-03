@@ -302,8 +302,8 @@ const CameraEvaluation = () => {
       setCountdown(null);
 
       if (isBluetoothAvailable && connectedRef.current) {
-        sendBluetoothCommand('frente\n');
-        console.log('➡️ Comando FRENTE enviado ao carrinho');
+        sendBluetoothCommand('d\n');
+        console.log('➡️ Comando D (Frente) enviado ao carrinho');
       } else if (isBluetoothAvailable && !connectedRef.current) {
         setBluetoothError('Carrinho não conectado via Bluetooth.');
       }

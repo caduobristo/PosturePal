@@ -116,7 +116,10 @@ const SessionResult = () => {
         title: 'Session deleted',
         description: 'The session was successfully removed.',
       });
-      navigate('/dashboard');
+      // Give time for the deletion to be processed, then navigate back to dashboard
+      setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 500);
     } catch (error) {
       toast({
         title: 'Error deleting session',
@@ -273,29 +276,6 @@ const SessionResult = () => {
       toast({
         title: 'Failed to generate PDF',
         description: error?.message || 'Try again in a moment.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleDeleteSession = async () => {
-    if (!sessionId) return;
-    
-    if (!window.confirm('Tem certeza que deseja deletar esta sessão?')) {
-      return;
-    }
-
-    try {
-      await deleteSession(sessionId);
-      toast({
-        title: 'Sessão deletada',
-        description: 'A sessão foi removida com sucesso.',
-      });
-      navigate('/');
-    } catch (error) {
-      toast({
-        title: 'Erro ao deletar',
-        description: error?.message || 'Não foi possível deletar a sessão.',
         variant: 'destructive',
       });
     }

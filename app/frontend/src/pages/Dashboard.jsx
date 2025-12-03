@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useMemo, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
@@ -24,8 +24,15 @@ import { deleteSession } from '../lib/api';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const { sessions, loading: loadingSessions, refresh } = useUserSessions(user?.id);
   const { toast } = useToast();
+
+  // Refresh sessions when returning to dashboard
+  useEffect(() => {
+    refresh();
+  }, [location, refresh]);
+
   const handleDeleteSession = async (sessionId, e) => {
     e.preventDefault();
     e.stopPropagation();
